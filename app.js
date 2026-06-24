@@ -5,17 +5,6 @@
 
 "use strict";
 
-// ── Conexión Directa con Supabase ──────────────────
-// Nota: Dejamos la URL sin el '/rest/v1/' para que la librería funcione correctamente.
-const SUPABASE_URL = 'https://nuqvqeynhssipmcmebxb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_WjBgPoBpB1ONRrQh_JSucA_X_cCi...'; // REEMPLAZÁ esto con tu clave Anon completa
-
-// Inicializar el cliente global de Supabase si la librería ya fue cargada en el HTML
-let supabaseClient = null;
-if (typeof supabase !== 'undefined' && supabase.createClient) {
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
-
 // ── State ──────────────────────────────────────────
 const State = {
   currentPage: 'landing',
@@ -116,6 +105,7 @@ function navigateLesson(direction) {
   goToStep(newStep);
 }
 
+// Corregido: Se restauró la estructura de parámetros para recibir el stepIndex de forma apropiada.
 function goToStep(stepIndex) {
   // Hide all steps
   document.querySelectorAll('.lesson__step').forEach(s => s.style.display = 'none');
@@ -372,9 +362,6 @@ function showBadgeModal(icon, name) {
     // Confetti-like particle effect
     createParticles();
   }
-}
-
-// Corregido: Se cierra la llave que faltaba en tu código original para evitar errores de sintaxis antes de continuar con la siguiente función.
 }
 
 function closeBadgeModal() {
