@@ -1159,8 +1159,44 @@
       </div>
 
       <div id="adminContent" style="display:none">
+
         <div class="dash__panel">
-          <h3>Subir nuevo material</h3>
+          <h3>1. Crear Curso</h3>
+          <p style="opacity:.8;font-size:.9rem">Un curso es el "paquete" general, por ejemplo "Inglés para Viajes" o "Pronunciación RP Básica".</p>
+          <form onsubmit="handleCreateCourse(event)" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+            <label>Nombre del curso<br>
+              <input id="newCourseTitle" type="text" required style="padding:.5rem;border-radius:8px;border:1px solid #ccc;min-width:240px">
+            </label>
+            <label>Nivel<br>
+              <select id="newCourseLevel" style="padding:.5rem;border-radius:8px;border:1px solid #ccc">
+                <option>A1</option><option>A2</option><option selected>B1</option><option>B2</option><option>C1</option><option>C2</option>
+              </select>
+            </label>
+            <button class="btn btn--primary btn--sm" type="submit">Crear curso</button>
+            <span id="courseStatus"></span>
+          </form>
+        </div>
+
+        <div class="dash__panel">
+          <h3>2. Crear Lección</h3>
+          <p style="opacity:.8;font-size:.9rem">Una lección es una unidad corta dentro del curso, por ejemplo "Check-in en el aeropuerto". Ahí es donde después subís los materiales.</p>
+          <form onsubmit="handleCreateLesson(event)" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+            <label>Curso<br>
+              <select id="newLessonCourse" style="padding:.5rem;border-radius:8px;border:1px solid #ccc;min-width:220px"></select>
+            </label>
+            <label>Título de la lección<br>
+              <input id="newLessonTitle" type="text" required style="padding:.5rem;border-radius:8px;border:1px solid #ccc;min-width:240px">
+            </label>
+            <label>Orden<br>
+              <input id="newLessonPosition" type="number" value="1" min="1" style="padding:.5rem;border-radius:8px;border:1px solid #ccc;width:70px">
+            </label>
+            <button class="btn btn--primary btn--sm" type="submit">Crear lección</button>
+            <span id="lessonStatus"></span>
+          </form>
+        </div>
+
+        <div class="dash__panel">
+          <h3>3. Subir nuevo material</h3>
           <form id="uploadForm" onsubmit="handleUploadMaterial(event)">
             <div style="display:flex;flex-direction:column;gap:.75rem;max-width:480px">
               <label>Curso / Lección
@@ -1194,7 +1230,7 @@
         </div>
 
         <div class="dash__panel">
-          <h3>Materiales existentes</h3>
+          <h3>4. Materiales existentes</h3>
           <div id="adminMaterialsList">Cargando…</div>
         </div>
       </div>
