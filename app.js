@@ -5,6 +5,17 @@
 
 "use strict";
 
+// ── Conexión Directa con Supabase ──────────────────
+// Nota: Dejamos la URL sin el '/rest/v1/' para que la librería funcione correctamente.
+const SUPABASE_URL = 'https://nuqvqeynhssipmcmebxb.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_WjBgPoBpB1ONRrQh_JSucA_X_cCi...'; // REEMPLAZÁ esto con tu clave Anon completa
+
+// Inicializar el cliente global de Supabase si la librería ya fue cargada en el HTML
+let supabaseClient = null;
+if (typeof supabase !== 'undefined' && supabase.createClient) {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
 // ── State ──────────────────────────────────────────
 const State = {
   currentPage: 'landing',
@@ -363,6 +374,9 @@ function showBadgeModal(icon, name) {
   }
 }
 
+// Corregido: Se cierra la llave que faltaba en tu código original para evitar errores de sintaxis antes de continuar con la siguiente función.
+}
+
 function closeBadgeModal() {
   const modal = document.getElementById('badgeModal');
   if (modal) modal.classList.remove('open');
@@ -595,9 +609,65 @@ function unlockAdmin() {
     document.getElementById('adminGate').style.display = 'none';
     document.getElementById('adminContent').style.display = 'block';
     loadAdminLessonOptions();
+    loadAdminCourseOptions();
     loadAdminMaterialsList();
   } else {
     showToast('⚠ Código incorrecto');
+  }
+}
+
+async function loadAdminCourseOptions() {
+  const select = document.getElementById('newLessonCourse');
+  if (!select) return;
+  try {
+    const courses = await fetchCourses();
+    select.innerHTML = courses.length
+      ? courses.map(c => `<option value="${c.id}">${escapeHtml(c.title)} (${c.level || '—'})</option>`).join('')
+      : '<option value="">Primero creá un curso arriba ↑</option>';
+  } catch (err) {
+    select.innerHTML = '<option value="">⚠ Error cargando cursos</option>';
+  }
+}
+
+async function handleCreateCourse(event) {
+  event.preventDefault();
+  const status = document.getElementById('courseStatus');
+  const title = document.getElementById('newCourseTitle').value.trim();
+  const level = document.getElementById('newCourseLevel').value;
+  if (!title) { showToast('⚠ Falta el nombre del curso'); return; }
+
+  status.textContent = 'Creando…';
+  try {
+    await createCourse(title, level);
+    status.textContent = '✓ Curso creado';
+    showToast(`✓ Curso "${title}" creado`);
+    document.getElementById('newCourseTitle').value = '';
+    loadAdminCourseOptions();
+  } catch (err) {
+    status.textContent = '⚠ Error';
+    showToast('⚠ No se pudo crear el curso');
+  }
+}
+
+async function handleCreateLesson(event) {
+  event.preventDefault();
+  const status = document.getElementById('lessonStatus');
+  const courseId = document.getElementById('newLessonCourse').value;
+  const title = document.getElementById('newLessonTitle').value.trim();
+  const position = parseInt(document.getElementById('newLessonPosition').value) || 1;
+  if (!courseId) { showToast('⚠ Primero creá o selecciona un curso'); return; }
+  if (!title) { showToast('⚠ Falta el título de la lección'); return; }
+
+  status.textContent = 'Creando…';
+  try {
+    await createLesson(courseId, title, position);
+    status.textContent = '✓ Lección creada';
+    showToast(`✓ Lección "${title}" creada`);
+    document.getElementById('newLessonTitle').value = '';
+    loadAdminLessonOptions();
+  } catch (err) {
+    status.textContent = '⚠ Error';
+    showToast('⚠ No se pudo crear la lección');
   }
 }
 
