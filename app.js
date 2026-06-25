@@ -590,16 +590,16 @@ async function openMaterial(materialId, url, action) {
 /* ═══════════════════════════════════════════════════
    PANEL DOCENTE — subir y administrar materiales
 ═══════════════════════════════════════════════════ */
-function unlockAdmin() {
-  const code = document.getElementById('adminCode').value;
-  if (checkTeacherAccess(code)) {
+async function unlockAdmin() {
+  const hasAccess = await checkTeacherAccess();
+  if (hasAccess) {
     document.getElementById('adminGate').style.display = 'none';
     document.getElementById('adminContent').style.display = 'block';
     loadAdminLessonOptions();
     loadAdminCourseOptions();
     loadAdminMaterialsList();
   } else {
-    showToast('⚠ Código incorrecto');
+    showToast('⚠ Solo docentes y administradores pueden acceder. Iniciá sesión con el rol correcto.');
   }
 }
 
@@ -767,4 +767,251 @@ async function loadRealStats() {
     console.error(err);
     [revenueEl, salesEl, studentsEl, eventsEl].forEach(el => el && (el.textContent = '⚠'));
   }
+}
+
+/* ═══════════════════════════════════════════════════
+   AUTH MODAL — Login, Registro y Gestión de Usuarios
+═══════════════════════════════════════════════════ */
+
+// Estado del perfil actual
+let CurrentProfile = null;
+
+// ── Inicializar sesión al cargar ─────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  // Escuchar cambios de sesión
+  onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      await refreshCurrentProfile();
+    } else {
+      CurrentProfile = null;
+      renderNavGuest();
+    }
+  });
+
+  // Cargar sesión existente
+  const user = await getCurrentUser();
+  if (user) {
+    await refreshCurrentProfile();
+  } else {
+    renderNavGuest();
+  }
+});
+
+async function refreshCurrentProfile() {
+  CurrentProfile = await getCurrentProfile();
+  if (CurrentProfile) {
+    renderNavUser(CurrentProfile);
+    // Mostrar tab Usuarios solo a admins
+    const tabUsers = document.getElementById('tabUsers');
+    if (tabUsers) tabUsers.style.display = CurrentProfile.role === 'admin' ? '' : 'none';
+  }
+}
+
+// ── Abrir / cerrar modal ─────────────────────────
+function openAuthModal(tab = 'login') {
+  const overlay = document.getElementById('authOverlay');
+  overlay.classList.add('open');
+  switchAuthTab(tab);
+}
+
+function closeAuthModal(event) {
+  if (event && event.target !== document.getElementById('authOverlay')) return;
+  document.getElementById('authOverlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('authOverlay')?.classList.remove('open');
+});
+
+// ── Cambiar tabs ─────────────────────────────────
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth__tab').forEach(t => t.classList.remove('auth__tab--active'));
+  document.querySelectorAll('.auth__panel').forEach(p => p.style.display = 'none');
+
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('auth__tab--active');
+  document.getElementById('authPanel' + tab.charAt(0).toUpperCase() + tab.slice(1)).style.display = '';
+
+  if (tab === 'users') loadUsersTable();
+}
+
+// ── LOGIN ────────────────────────────────────────
+async function handleLogin() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl  = document.getElementById('loginError');
+  const btn      = document.getElementById('loginBtn');
+
+  errorEl.textContent = '';
+  if (!email || !password) { errorEl.textContent = 'Completá email y contraseña.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Ingresando…';
+  try {
+    await signInUser(email, password);
+    await refreshCurrentProfile();
+    document.getElementById('authOverlay').classList.remove('open');
+    showToast('✓ Sesión iniciada · Bienvenido/a de vuelta');
+    showPage('dashboard');
+  } catch (err) {
+    errorEl.textContent = traducirError(err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ingresar';
+  }
+}
+
+// ── REGISTRO ─────────────────────────────────────
+async function handleRegister() {
+  const name     = document.getElementById('regName').value.trim();
+  const email    = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const role     = document.getElementById('regRole').value;
+  const errorEl  = document.getElementById('regError');
+  const infoEl   = document.getElementById('regInfo');
+  const btn      = document.getElementById('regBtn');
+
+  errorEl.textContent = ''; infoEl.textContent = '';
+  if (!name || !email || !password) { errorEl.textContent = 'Completá todos los campos.'; return; }
+  if (password.length < 6)          { errorEl.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Creando cuenta…';
+  try {
+    await signUpUser(email, password, name, role);
+    infoEl.textContent = '✓ Cuenta creada. Revisá tu email para confirmarla (o ingresá si la confirmación está desactivada).';
+    document.getElementById('regName').value = '';
+    document.getElementById('regEmail').value = '';
+    document.getElementById('regPassword').value = '';
+    showToast('✓ Usuario creado: ' + name);
+  } catch (err) {
+    errorEl.textContent = traducirError(err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Crear cuenta';
+  }
+}
+
+// ── CERRAR SESIÓN ────────────────────────────────
+async function handleSignOut() {
+  try {
+    await signOutUser();
+    CurrentProfile = null;
+    renderNavGuest();
+    showPage('landing');
+    showToast('Sesión cerrada · ¡Hasta pronto!');
+  } catch (err) {
+    showToast('⚠ Error al cerrar sesión');
+  }
+}
+
+// ── TABLA DE USUARIOS (solo admin) ───────────────
+async function loadUsersTable() {
+  const container = document.getElementById('usersList');
+  if (!container) return;
+  container.innerHTML = '<p style="opacity:.6">Cargando…</p>';
+
+  try {
+    const profiles = await fetchAllProfiles();
+    if (!profiles.length) { container.innerHTML = '<p>No hay usuarios todavía.</p>'; return; }
+
+    const rows = profiles.map(p => `
+      <tr>
+        <td>
+          <strong>${escapeHtml(p.display_name || '—')}</strong><br>
+          <span style="font-size:.75rem;color:var(--text-muted)">${escapeHtml(p.email)}</span>
+        </td>
+        <td>
+          <select class="role-select" data-uid="${p.id}" onchange="handleRoleChange('${p.id}', this.value)">
+            <option value="student"  ${p.role === 'student'  ? 'selected' : ''}>Alumno</option>
+            <option value="teacher"  ${p.role === 'teacher'  ? 'selected' : ''}>Docente</option>
+            <option value="admin"    ${p.role === 'admin'    ? 'selected' : ''}>Admin</option>
+          </select>
+        </td>
+        <td>
+          <span class="role-tag role-tag--${p.role}">${rolLabel(p.role)}</span>
+        </td>
+        <td>
+          <button class="btn--danger" onclick="handleDeleteUser('${p.id}', '${escapeHtml(p.display_name || p.email)}')">🗑</button>
+        </td>
+      </tr>
+    `).join('');
+
+    container.innerHTML = `
+      <table class="users__table">
+        <thead><tr>
+          <th>Usuario</th><th>Cambiar rol</th><th>Rol actual</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (err) {
+    container.innerHTML = '<p style="color:var(--red)">⚠ ' + err.message + '</p>';
+  }
+}
+
+async function handleRoleChange(userId, newRole) {
+  try {
+    await updateUserRole(userId, newRole);
+    showToast('✓ Rol actualizado a ' + rolLabel(newRole));
+    loadUsersTable();
+  } catch (err) {
+    showToast('⚠ No se pudo cambiar el rol');
+  }
+}
+
+async function handleDeleteUser(userId, name) {
+  if (!confirm('¿Eliminar el perfil de ' + name + '? Esta acción no se puede deshacer.')) return;
+  try {
+    await deleteUserProfile(userId);
+    showToast('✓ Usuario eliminado');
+    loadUsersTable();
+  } catch (err) {
+    showToast('⚠ No se pudo eliminar el usuario');
+  }
+}
+
+// ── Actualizar nav ───────────────────────────────
+function renderNavUser(profile) {
+  const guest = document.getElementById('navGuest');
+  const user  = document.getElementById('navUser');
+  if (guest) guest.style.display = 'none';
+  if (user)  user.style.display  = 'flex';
+
+  const initials = (profile.display_name || profile.email)
+    .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const firstName = (profile.display_name || profile.email.split('@')[0]).split(' ')[0];
+
+  const avatarEl = document.getElementById('navUserAvatar');
+  const nameEl   = document.getElementById('navUserName');
+  const roleEl   = document.getElementById('navUserRole');
+  if (avatarEl) avatarEl.textContent = initials;
+  if (nameEl)   nameEl.textContent   = firstName;
+  if (roleEl)   roleEl.textContent   = rolLabel(profile.role);
+
+  // También actualizar el sidebar del dashboard
+  const sidebarAvatar = document.querySelector('.sidebar__avatar');
+  const sidebarName   = document.querySelector('.sidebar__user-info strong');
+  if (sidebarAvatar) sidebarAvatar.textContent = initials;
+  if (sidebarName)   sidebarName.textContent   = firstName;
+
+  // Actualizar saludo del dashboard
+  const dashTitle = document.querySelector('.dash__title');
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  if (dashTitle) dashTitle.innerHTML = greeting + ', ' + firstName + ' <span role="img" aria-label="Sol">☀️</span>';
+}
+
+function renderNavGuest() {
+  const guest = document.getElementById('navGuest');
+  const user  = document.getElementById('navUser');
+  if (guest) guest.style.display = '';
+  if (user)  user.style.display  = 'none';
+}
+
+// ── Helpers ──────────────────────────────────────
+function rolLabel(role) {
+  return { admin: 'Admin', teacher: 'Docente', student: 'Alumno' }[role] || role;
+}
+
+function traducirError(msg) {
+  if (msg.includes('Invalid login credentials')) return 'Email o contraseña incorrectos.';
+  if (msg.includes('Email not confirmed'))       return 'Confirmá tu email antes de ingresar.';
+  if (msg.includes('User already registered'))   return 'Ese email ya tiene una cuenta registrada.';
+  if (msg.includes('Password should be'))        return 'La contraseña debe tener al menos 6 caracteres.';
+  return msg;
 }
