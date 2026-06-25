@@ -1394,10 +1394,44 @@ blockquote { quotes: none; }
   .compare__vs { display: none; }
 }
 @media (max-width: 768px) {
+  /* NAV */
   .nav__links, .nav__actions { display: none; }
   .nav__hamburger { display: flex; }
-  .nav__links.open { display: flex; flex-direction: column; position: absolute; top: 100%; left: 0; right: 0; background: var(--navy-deep); padding: 1rem; gap: 1rem; }
-  .nav__actions.open { display: flex; flex-direction: column; padding: 1rem; }
+  .nav__links.open {
+    display: flex; flex-direction: column;
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--navy-deep);
+    padding: 1rem 1.5rem; gap: .75rem;
+    border-bottom: 1px solid rgba(201,168,76,.15);
+    z-index: 200;
+  }
+  .nav__actions.open {
+    display: flex; flex-direction: column;
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--navy-deep);
+    padding: 0 1.5rem 1.25rem;
+    gap: .6rem;
+    border-bottom: 1px solid rgba(201,168,76,.15);
+    z-index: 200;
+  }
+  /* When both links + actions are open, stack actions below links */
+  .nav__links.open ~ .nav__hamburger { display: none; }
+
+  /* Auth buttons in mobile menu go full width */
+  .nav__actions.open .btn { width: 100%; text-align: center; }
+
+  /* User chip in mobile: hide role badge, compact layout */
+  .nav__actions.open #navUser {
+    flex-direction: column; align-items: flex-start; gap: .5rem;
+    padding: .75rem 0; border-top: 1px solid rgba(255,255,255,.08);
+  }
+  .nav__actions.open .nav__user-chip {
+    background: rgba(255,255,255,.06);
+    width: 100%; justify-content: flex-start;
+  }
+  .nav__role-badge { display: none; }
+
+  /* PAGE LAYOUT */
   .hero { padding: 7rem 1.5rem 4rem; }
   .section { padding: 4rem 0; }
   .dashboard { grid-template-columns: 1fr; }
@@ -1411,6 +1445,249 @@ blockquote { quotes: none; }
   .dash__cards { grid-template-columns: 1fr 1fr; }
   .vowel__grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* Extra small */
+@media (max-width: 420px) {
+  .dash__cards { grid-template-columns: 1fr; }
+  .hero__actions { flex-direction: column; gap: .75rem; }
+  .hero__actions .btn { width: 100%; text-align: center; }
+  .hero__stats { flex-direction: column; gap: 1rem; }
+  .hero__stat-divider { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ══════════════════════════════════════════
+   AUTH MODAL
+══════════════════════════════════════════ */
+.auth__overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(7,15,36,.75);
+  backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+}
+.auth__overlay.open { display: flex; }
+
+.auth__modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  width: 100%; max-width: 440px; margin: 1rem;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  position: relative;
+  animation: modalIn .28s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes modalIn {
+  from { opacity:0; transform: scale(.92) translateY(12px); }
+  to   { opacity:1; transform: scale(1)  translateY(0); }
+}
+
+.auth__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--ivory);
+}
+.auth__tab {
+  flex: 1; padding: .85rem .5rem;
+  background: none; border: none; cursor: pointer;
+  font-family: var(--font-sans); font-size: .85rem; font-weight: 500;
+  color: var(--text-muted);
+  transition: var(--transition);
+  border-bottom: 2px solid transparent;
+}
+.auth__tab--active {
+  color: var(--navy);
+  border-bottom-color: var(--gold);
+  background: var(--white);
+}
+.auth__tab:hover:not(.auth__tab--active) { color: var(--navy); }
+
+.auth__close {
+  position: absolute; top: .75rem; right: 1rem;
+  background: none; border: none; cursor: pointer;
+  font-size: 1.1rem; color: var(--text-muted);
+  transition: var(--transition);
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.auth__close:hover { background: var(--ivory-dark); color: var(--navy); }
+
+.auth__panel { padding: 2rem; }
+
+.auth__header { text-align: center; margin-bottom: 1.75rem; }
+.auth__crown  { font-size: 2rem; display: block; margin-bottom: .5rem; color: var(--gold); }
+.auth__title  { font-family: var(--font-serif); font-size: 1.5rem; color: var(--navy); margin-bottom: .25rem; }
+.auth__subtitle { font-size: .85rem; color: var(--text-muted); }
+
+.auth__fields { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1rem; }
+.auth__fields label {
+  display: flex; flex-direction: column; gap: .35rem;
+  font-size: .8rem; font-weight: 600; color: var(--text-mid); letter-spacing: .03em;
+}
+.auth__fields input,
+.auth__fields select {
+  padding: .65rem .9rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans); font-size: .9rem;
+  color: var(--text-dark);
+  transition: var(--transition);
+  background: var(--ivory);
+}
+.auth__fields input:focus,
+.auth__fields select:focus {
+  outline: none;
+  border-color: var(--gold);
+  background: var(--white);
+  box-shadow: 0 0 0 3px rgba(201,168,76,.15);
+}
+
+.auth__submit { width: 100%; padding: .85rem; font-size: 1rem; margin-top: .5rem; }
+.auth__submit:disabled { opacity: .6; cursor: not-allowed; }
+
+.auth__error {
+  font-size: .8rem; color: var(--red); min-height: 1.2em;
+  text-align: center; margin-bottom: .25rem;
+}
+.auth__info  {
+  font-size: .8rem; color: #2e7d32; min-height: 1.2em;
+  text-align: center; margin-bottom: .25rem;
+}
+
+.auth__switch {
+  text-align: center; font-size: .82rem; color: var(--text-muted);
+  margin-top: 1rem;
+}
+.auth__switch a { color: var(--navy); font-weight: 600; }
+.auth__switch a:hover { color: var(--gold); }
+
+/* NAV usuario logueado */
+.nav__user-chip {
+  display: flex; align-items: center; gap: .5rem;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(201,168,76,.25);
+  border-radius: 50px; padding: .3rem .75rem .3rem .4rem;
+}
+.nav__user-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--gold); color: var(--navy);
+  font-size: .7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.nav__role-badge {
+  font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  background: rgba(201,168,76,.2); color: var(--gold-light);
+  padding: .15rem .5rem; border-radius: 50px;
+}
+
+/* TABLA DE USUARIOS */
+.users__table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+.users__table {
+  width: 100%; border-collapse: collapse; font-size: .82rem;
+}
+.users__table th {
+  background: var(--ivory); color: var(--text-mid);
+  font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  padding: .6rem .75rem; text-align: left;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0;
+}
+.users__table td {
+  padding: .6rem .75rem;
+  border-bottom: 1px solid var(--ivory-dark);
+  vertical-align: middle;
+}
+.users__table tr:hover td { background: var(--ivory); }
+
+.role-select {
+  font-size: .78rem; padding: .25rem .4rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--ivory); cursor: pointer;
+}
+.btn--danger {
+  background: transparent; color: var(--red);
+  border: 1px solid var(--red); padding: .25rem .6rem;
+  border-radius: var(--radius-sm); font-size: .75rem;
+  cursor: pointer; transition: var(--transition);
+}
+.btn--danger:hover { background: var(--red); color: var(--white); }
+
+/* Role color tags in table */
+.role-tag {
+  display: inline-block; padding: .15rem .5rem; border-radius: 50px;
+  font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+}
+.role-tag--admin   { background: #fce4ec; color: #b71c1c; }
+.role-tag--teacher { background: #e3f2fd; color: #0d47a1; }
+.role-tag--student { background: #e8f5e9; color: #1b5e20; }
+
+/* ══════════════════════════════════════════
+   AUTH MODAL — RESPONSIVE
+══════════════════════════════════════════ */
+
+/* Full-screen sheet on small phones */
+@media (max-width: 520px) {
+  .auth__overlay { align-items: flex-end; }
+  .auth__modal {
+    max-width: 100%; margin: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 92dvh;
+    overflow-y: auto;
+    animation: sheetUp .3s cubic-bezier(.32,0,.67,0) both;
+  }
+  @keyframes sheetUp {
+    from { transform: translateY(100%); opacity: .8; }
+    to   { transform: translateY(0);   opacity: 1; }
+  }
+  .auth__panel { padding: 1.25rem 1.25rem 2rem; }
+  .auth__header { margin-bottom: 1.25rem; }
+  .auth__crown  { font-size: 1.6rem; }
+  .auth__title  { font-size: 1.3rem; }
+  .auth__tab    { font-size: .78rem; padding: .75rem .4rem; }
+  .auth__fields { gap: .75rem; }
+  .auth__fields input,
+  .auth__fields select { font-size: 1rem; /* prevent iOS zoom */ padding: .7rem .85rem; }
+}
+
+/* Users table — stack cards on mobile */
+@media (max-width: 560px) {
+  .users__table thead { display: none; }
+  .users__table,
+  .users__table tbody,
+  .users__table tr,
+  .users__table td { display: block; width: 100%; }
+  .users__table tr {
+    padding: .75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: .5rem;
+    background: var(--ivory);
+  }
+  .users__table td { padding: .3rem 0; border: none; }
+  .users__table td:last-child { text-align: right; }
+  .role-select { width: 100%; }
+}
+
+/* Nav user chip — compact at medium sizes */
+@media (max-width: 900px) {
+  .nav__user-chip { padding: .3rem .5rem .3rem .4rem; }
+  #navUserName { display: none; }
+  .nav__role-badge { display: none; }
+}
+@media (min-width: 769px) and (max-width: 1050px) {
+  .nav__actions #navGuest { display: flex; gap: .4rem; }
+  .nav__actions #navGuest .btn { padding: .45rem .75rem; font-size: .8rem; }
+}
+
+/* Mobile sheet drag handle */
+.auth__handle {
+  display: none;
+  width: 36px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: .75rem auto .25rem;
+}
+@media (max-width: 520px) {
+  .auth__handle { display: block; }
 }
