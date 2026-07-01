@@ -185,8 +185,12 @@ async function fetchCourses() {
   return data || [];
 }
 
-async function createCourse(title, level) {
-  const { data, error } = await supabaseClient.from("courses").insert([{ title, level }]).select();
+async function createCourse(title, level, extra = {}) {
+  const { age_group = null, sublevel = null, teacher_id = null } = extra;
+  const { data, error } = await supabaseClient
+    .from("courses")
+    .insert([{ title, level, age_group, sublevel, teacher_id }])
+    .select();
   if (error) throw error;
   return data;
 }
@@ -280,6 +284,51 @@ async function fetchCourseStudents(courseId) {
     .eq("course_id", courseId);
   if (error) throw error;
   return (data || []).map(e => e.profiles).filter(Boolean);
+}
+
+/**
+ * Alias usado por el dashboard docente (app.js): cursos asignados a un profesor.
+ */
+async function fetchCoursesForTeacher(teacherId) {
+  return fetchTeacherCourses(teacherId);
+}
+
+/**
+ * Todos los cursos, agrupados por age_group → level, para el panel de admin.
+ * Devuelve algo como: { starter: { A1: [...], A2: [...] }, sin_asignar: { ... } }
+ */
+async function fetchAllCoursesGrouped() {
+  const { data, error } = await supabaseClient
+    .from("courses")
+    .select("*")
+    .order("title");
+  if (error) throw error;
+
+  const grouped = {};
+  (data || []).forEach(course => {
+    const ageKey = course.age_group || "sin_asignar";
+    const levelKey = course.level || "Sin nivel";
+    if (!grouped[ageKey]) grouped[ageKey] = {};
+    if (!grouped[ageKey][levelKey]) grouped[ageKey][levelKey] = [];
+    grouped[ageKey][levelKey].push(course);
+  });
+  return grouped;
+}
+
+/**
+ * Cuenta perfiles por rol (para las tarjetas del panel de admin).
+ */
+async function fetchProfileCountsByRole() {
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .select("role");
+  if (error) throw error;
+
+  const counts = { student: 0, teacher: 0, admin: 0 };
+  (data || []).forEach(p => {
+    if (counts[p.role] !== undefined) counts[p.role]++;
+  });
+  return counts;
 }
 
 async function fetchTeacherStudentCount(teacherId) {
