@@ -345,6 +345,30 @@ async function registerSale({ planId, planName, amount, studentName, studentEmai
   return data;
 }
 
+/**
+ * Trae todas las ventas para el panel de Gestión Comercial (solo admin).
+ */
+async function fetchAllSales() {
+  const { data, error } = await supabaseClient
+    .from("sales")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Actualiza el estado de una venta: 'pendiente' | 'pagado' | 'cancelado'.
+ * Requiere la policy "actualizar ventas" (UPDATE) en la tabla sales.
+ */
+async function updateSaleStatus(saleId, status) {
+  const { error } = await supabaseClient
+    .from("sales")
+    .update({ status })
+    .eq("id", saleId);
+  if (error) throw error;
+}
+
 /* ──────────────────────────────────────────────────
    ESTADÍSTICAS
 ────────────────────────────────────────────────── */
