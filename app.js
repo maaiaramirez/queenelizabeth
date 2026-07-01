@@ -550,6 +550,21 @@ async function loadMaterialsPage() {
   if (nameInput && name) nameInput.value = name;
   if (emailInput && email) emailInput.value = email;
 
+  // En v2, `materials` requiere usuario autenticado (RLS). Sin sesión,
+  // la consulta no tira error: devuelve vacío. Avisamos antes de fetchear
+  // para no mostrar "no hay materiales" cuando en realidad es que falta login.
+  if (!CurrentProfile) CurrentProfile = await getCurrentProfile();
+  if (!CurrentProfile) {
+    container.innerHTML = `
+      <div class="dash__panel" style="text-align:center;padding:2rem 1.5rem">
+        <div style="font-size:1.8rem;margin-bottom:.5rem">🔒</div>
+        <strong style="display:block;color:var(--navy);margin-bottom:.35rem">Iniciá sesión para ver los materiales</strong>
+        <p style="opacity:.65;font-size:.85rem;margin-bottom:1rem">La biblioteca de materiales es solo para alumnos con cuenta.</p>
+        <button class="btn btn--primary btn--sm" onclick="openAuthModal('login')">Iniciar sesión →</button>
+      </div>`;
+    return;
+  }
+
   try {
     const materials = await fetchAllMaterials();
     if (!materials.length) {
