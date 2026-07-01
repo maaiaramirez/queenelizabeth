@@ -9,9 +9,9 @@
 <script>
   const SUPABASE_URL     = "https://nuqvqeynhssipmcmebxb.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_WjBgPoBpB1ONRrQh_JSucA_X_cCiDZY";
-
-  const supabaseClient   = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const MATERIALS_BUCKET = "materials";
+  // supabaseClient se crea una sola vez, dentro de library.js,
+  // usando SUPABASE_URL / SUPABASE_ANON_KEY definidos arriba.
 </script>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
@@ -32,11 +32,6 @@
 <ul id="folderList"></ul>
 <ul id="itemList"></ul>
 
-<script>
-  // ⚠️ Reemplazá con tus valores reales de Supabase
-  const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co';
-  const SUPABASE_ANON_KEY = 'TU-ANON-KEY';
-</script>
 <script src="library.js"></script>
 <script>
   let currentFolderId = null;
