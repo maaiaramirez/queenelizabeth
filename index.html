@@ -525,31 +525,31 @@
         <a href="#" class="sidebar__link sidebar__link--active" data-section="overview">
           <span class="sidebar__icon" aria-hidden="true">⊞</span> Resumen
         </a>
-        <a href="#" class="sidebar__link" data-section="lessons" onclick="showPage('leccion')">
+        <a href="#" class="sidebar__link sidebar__role-student" data-section="lessons" onclick="showPage('leccion')">
           <span class="sidebar__icon" aria-hidden="true">📖</span> Mis Lecciones
         </a>
-        <a href="#" class="sidebar__link" data-section="live">
+        <a href="#" class="sidebar__link sidebar__role-student" data-section="live">
           <span class="sidebar__icon" aria-hidden="true">🎥</span> Clases en Vivo
         </a>
-        <a href="#" class="sidebar__link" data-section="library">
+        <a href="#" class="sidebar__link sidebar__role-student" data-section="library">
           <span class="sidebar__icon" aria-hidden="true">🎧</span> Biblioteca
         </a>
         <a href="#" class="sidebar__link" data-section="materiales" onclick="showPage('materiales')">
           <span class="sidebar__icon" aria-hidden="true">📂</span> Materiales
         </a>
-        <a href="#" class="sidebar__link" data-section="admin" onclick="showPage('admin')">
+        <a href="#" class="sidebar__link sidebar__role-teacher sidebar__role-admin" data-section="admin" onclick="showPage('admin')">
           <span class="sidebar__icon" aria-hidden="true">🛠️</span> Panel Docente
         </a>
         <a href="https://classroom.google.com" target="_blank" rel="noopener" class="sidebar__link">
           <span class="sidebar__icon" aria-hidden="true">🔗</span> Ir a Moodle/Classroom
         </a>
-        <a href="#" class="sidebar__link" data-section="tutoring">
+        <a href="#" class="sidebar__link sidebar__role-student" data-section="tutoring">
           <span class="sidebar__icon" aria-hidden="true">📅</span> Tutorías
         </a>
-        <a href="#" class="sidebar__link" data-section="community">
+        <a href="#" class="sidebar__link sidebar__role-student" data-section="community">
           <span class="sidebar__icon" aria-hidden="true">💬</span> Comunidad
         </a>
-        <a href="#" class="sidebar__link" data-section="badges">
+        <a href="#" class="sidebar__link sidebar__role-student" data-section="badges">
           <span class="sidebar__icon" aria-hidden="true">🏅</span> Royal Badges
         </a>
       </nav>
@@ -562,8 +562,13 @@
       </div>
     </aside>
 
-    <!-- MAIN DASHBOARD CONTENT — ALUMNO -->
-    <main class="dash__main" id="dashMainStudent">
+    <!-- MAIN DASHBOARD CONTENT -->
+    <main class="dash__main">
+
+      <!-- ══════════════════════════════════════
+           VISTA: ALUMNO — se oculta si el rol es teacher/admin
+      ══════════════════════════════════════ -->
+      <div id="dashStudentView">
       <!-- HEADER -->
       <div class="dash__header">
         <div>
@@ -828,124 +833,92 @@
         </div>
       </div>
 
-    </main>
+      </div><!-- /#dashStudentView -->
 
-    <!-- MAIN DASHBOARD CONTENT — ADMIN -->
-    <main class="dash__main" id="dashMainAdmin" style="display:none">
-      <div class="dash__header">
-        <div>
-          <h1 class="dash__title">Panel de Administración <span role="img" aria-label="Engranaje">🛠️</span></h1>
-          <p class="dash__subtitle">Visión global del instituto: alumnos, profesores, ingresos y cursos.</p>
-        </div>
-        <button class="btn btn--primary" onclick="showPage('admin')">Gestionar Materiales →</button>
-      </div>
-
-      <div class="dash__cards">
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Birrete">🎓</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Alumnos</span>
-            <span class="dash__card-value" id="adminStatStudents">—</span>
+      <!-- ══════════════════════════════════════
+           VISTA: DOCENTE — solo sus propios cursos/alumnos
+      ══════════════════════════════════════ -->
+      <div id="dashTeacherView" style="display:none">
+        <div class="dash__header">
+          <div>
+            <h1 class="dash__title">Mis Clases <span role="img" aria-label="Pizarrón">🧑‍🏫</span></h1>
+            <p class="dash__subtitle">Estos son los cursos asignados a vos. Elegí uno para ver alumnos y progreso.</p>
           </div>
         </div>
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Profesor">🧑‍🏫</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Profesores</span>
-            <span class="dash__card-value" id="adminStatTeachers">—</span>
-          </div>
-        </div>
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Bolsa de dinero">💰</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Ingresos (pagados)</span>
-            <span class="dash__card-value" id="adminStatRevenue">—</span>
-          </div>
-        </div>
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Libros">📚</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Cursos</span>
-            <span class="dash__card-value" id="adminStatCourses">—</span>
-          </div>
-        </div>
-      </div>
 
-      <section class="dash__panel">
-        <div class="panel__header">
-          <h3>Cursos y profesores asignados</h3>
-          <a href="#" onclick="showPage('admin')">Crear curso →</a>
-        </div>
-        <div id="adminCoursesList">Cargando cursos…</div>
-      </section>
-
-      <section class="dash__panel">
-        <div class="panel__header">
-          <h3>Usuarios recientes</h3>
-          <a href="#" onclick="openAuthModal('users')">Ver todos →</a>
-        </div>
-        <div id="adminRecentUsers">Cargando usuarios…</div>
-      </section>
-    </main>
-
-    <!-- MAIN DASHBOARD CONTENT — PROFESOR -->
-    <main class="dash__main" id="dashMainTeacher" style="display:none">
-      <div class="dash__header">
-        <div>
-          <h1 class="dash__title">Mis Clases <span role="img" aria-label="Pizarrón">🧑‍🏫</span></h1>
-          <p class="dash__subtitle">Tus cursos asignados, tus alumnos y tus materiales.</p>
-        </div>
-        <button class="btn btn--primary" onclick="showPage('admin')">Subir Material →</button>
-      </div>
-
-      <div class="dash__cards">
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Libros">📚</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Mis Cursos</span>
-            <span class="dash__card-value" id="teacherStatCourses">—</span>
-          </div>
-        </div>
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Birrete">🎓</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Mis Alumnos</span>
-            <span class="dash__card-value" id="teacherStatStudents">—</span>
-          </div>
-        </div>
-        <div class="dash__card">
-          <div class="dash__card-icon" role="img" aria-label="Carpeta">📂</div>
-          <div class="dash__card-info">
-            <span class="dash__card-label">Materiales Subidos</span>
-            <span class="dash__card-value" id="teacherStatMaterials">—</span>
-          </div>
-        </div>
-      </div>
-
-      <section class="dash__panel">
-        <div class="panel__header">
-          <h3>Mis cursos asignados</h3>
-        </div>
-        <div id="teacherCoursesList">Cargando cursos…</div>
-      </section>
-
-      <section class="dash__panel">
-        <div class="panel__header">
-          <h3>Próximas tutorías</h3>
-        </div>
-        <div class="live__list">
-          <div class="live__item live__item--today">
-            <div class="live__time">HOY 18:00</div>
-            <div class="live__info">
-              <strong>1-a-1 con tu alumno</strong>
-              <span>Práctica de RP · Vowel sounds</span>
+        <div class="dash__cards" id="teacherStatCards">
+          <div class="dash__card">
+            <div class="dash__card-icon" role="img" aria-label="Libros">📚</div>
+            <div class="dash__card-info">
+              <span class="dash__card-label">Cursos a cargo</span>
+              <span class="dash__card-value" id="teacherCourseCount">—</span>
             </div>
-            <button class="btn btn--primary btn--sm">Iniciar</button>
+          </div>
+          <div class="dash__card">
+            <div class="dash__card-icon" role="img" aria-label="Birrete">🎓</div>
+            <div class="dash__card-info">
+              <span class="dash__card-label">Alumnos totales</span>
+              <span class="dash__card-value" id="teacherStudentCount">—</span>
+            </div>
           </div>
         </div>
-      </section>
-    </main>
 
+        <section class="dash__panel">
+          <div class="panel__header">
+            <h3>Mis cursos</h3>
+          </div>
+          <div id="teacherCoursesList">
+            <p style="opacity:.6">Cargando tus cursos…</p>
+          </div>
+        </section>
+      </div><!-- /#dashTeacherView -->
+
+      <!-- ══════════════════════════════════════
+           VISTA: ADMIN / DIRECTOR — todas las clases y docentes
+      ══════════════════════════════════════ -->
+      <div id="dashAdminView" style="display:none">
+        <div class="dash__header">
+          <div>
+            <h1 class="dash__title">Panel de Dirección <span role="img" aria-label="Corona">👑</span></h1>
+            <p class="dash__subtitle">Visión completa de la academia: todos los cursos, docentes y alumnos.</p>
+          </div>
+        </div>
+
+        <div class="dash__cards" id="adminStatCards">
+          <div class="dash__card">
+            <div class="dash__card-icon" role="img" aria-label="Libros">📚</div>
+            <div class="dash__card-info">
+              <span class="dash__card-label">Cursos totales</span>
+              <span class="dash__card-value" id="adminCourseCount">—</span>
+            </div>
+          </div>
+          <div class="dash__card">
+            <div class="dash__card-icon" role="img" aria-label="Docente">🧑‍🏫</div>
+            <div class="dash__card-info">
+              <span class="dash__card-label">Docentes</span>
+              <span class="dash__card-value" id="adminTeacherCount">—</span>
+            </div>
+          </div>
+          <div class="dash__card">
+            <div class="dash__card-icon" role="img" aria-label="Birrete">🎓</div>
+            <div class="dash__card-info">
+              <span class="dash__card-label">Alumnos</span>
+              <span class="dash__card-value" id="adminStudentCount">—</span>
+            </div>
+          </div>
+        </div>
+
+        <section class="dash__panel">
+          <div class="panel__header">
+            <h3>Todas las clases, agrupadas por edad → nivel → grado</h3>
+          </div>
+          <div id="adminCoursesGrouped">
+            <p style="opacity:.6">Cargando cursos…</p>
+          </div>
+        </section>
+      </div><!-- /#dashAdminView -->
+
+    </main>
   </div>
 </div>
 
@@ -1302,9 +1275,23 @@
             <label for="newCourseTitle">Nombre del curso<br>
               <input id="newCourseTitle" type="text" required style="padding:.5rem;border-radius:8px;border:1px solid #ccc;min-width:240px">
             </label>
+            <label for="newCourseAgeGroup">Grupo de edad<br>
+              <select id="newCourseAgeGroup" style="padding:.5rem;border-radius:8px;border:1px solid #ccc">
+                <option value="starter">Starter</option>
+                <option value="medium" selected>Medium</option>
+                <option value="elder">Elder</option>
+              </select>
+            </label>
             <label for="newCourseLevel">Nivel<br>
               <select id="newCourseLevel" style="padding:.5rem;border-radius:8px;border:1px solid #ccc">
                 <option>A1</option><option>A2</option><option selected>B1</option><option>B2</option><option>C1</option><option>C2</option>
+              </select>
+            </label>
+            <label for="newCourseSublevel">Grado<br>
+              <select id="newCourseSublevel" style="padding:.5rem;border-radius:8px;border:1px solid #ccc">
+                <option value="A">A</option>
+                <option value="B" selected>B</option>
+                <option value="C">C</option>
               </select>
             </label>
             <button class="btn btn--primary btn--sm" type="submit">Crear curso</button>
