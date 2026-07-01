@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════
+//* ═══════════════════════════════════════════════════
    QUEEN ELIZABETH ACADEMY — app.js
    Interactions, navigation, gamification, lesson flow
 ═══════════════════════════════════════════════════ */
@@ -27,10 +27,7 @@ function showPage(pageId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     updateNavForPage(pageId);
   }
-  if (pageId === 'dashboard') {
-    loadRealStats();
-    if (typeof CurrentProfile !== 'undefined' && CurrentProfile) renderDashboardForRole(CurrentProfile.role);
-  }
+  if (pageId === 'dashboard') loadRealStats();
   if (pageId === 'materiales') loadMaterialsPage();
   if (pageId === 'admin') loadAdminLessonOptions();
 }
@@ -622,13 +619,18 @@ async function loadAdminCourseOptions() {
 async function handleCreateCourse(event) {
   event.preventDefault();
   const status = document.getElementById('courseStatus');
-  const title = document.getElementById('newCourseTitle').value.trim();
-  const level = document.getElementById('newCourseLevel').value;
+  const title      = document.getElementById('newCourseTitle').value.trim();
+  const level      = document.getElementById('newCourseLevel').value;
+  const age_group  = document.getElementById('newCourseAgeGroup')?.value || null;
+  const sublevel   = document.getElementById('newCourseSublevel')?.value || null;
+  // Si quien crea el curso es docente, se asigna a sí mismo automáticamente.
+  // Si es admin, queda "sin asignar" y lo asigna después desde el panel de dirección.
+  const teacher_id = CurrentProfile?.role === 'teacher' ? CurrentProfile.id : null;
   if (!title) { showToast('⚠ Falta el nombre del curso'); return; }
 
   status.textContent = 'Creando…';
   try {
-    await createCourse(title, level);
+    await createCourse(title, level, { age_group, sublevel, teacher_id });
     status.textContent = '✓ Curso creado';
     showToast(`✓ Curso "${title}" creado`);
     document.getElementById('newCourseTitle').value = '';
@@ -807,109 +809,104 @@ async function refreshCurrentProfile() {
     // Mostrar tab Usuarios solo a admins
     const tabUsers = document.getElementById('tabUsers');
     if (tabUsers) tabUsers.style.display = CurrentProfile.role === 'admin' ? '' : 'none';
-    renderDashboardForRole(CurrentProfile.role);
+    applyRoleToDashboard(CurrentProfile.role);
   }
 }
 
-/* ── Dashboard por rol ────────────────────────────
-   Muestra solo el <main> correspondiente y carga sus datos.
-────────────────────────────────────────────────── */
-function renderDashboardForRole(role) {
-  const mains = {
-    student: document.getElementById('dashMainStudent'),
-    admin:   document.getElementById('dashMainAdmin'),
-    teacher: document.getElementById('dashMainTeacher'),
+/* ═══════════════════════════════════════════════════
+   DASHBOARD SEGÚN ROL
+   student → ve lecciones/badges (lo de siempre)
+   teacher → ve SOLO sus cursos
+   admin   → ve TODAS las clases, agrupadas por edad → nivel → grado
+═══════════════════════════════════════════════════ */
+function applyRoleToDashboard(role) {
+  const views = {
+    student: document.getElementById('dashStudentView'),
+    teacher: document.getElementById('dashTeacherView'),
+    admin:   document.getElementById('dashAdminView'),
   };
-  Object.entries(mains).forEach(([key, el]) => {
-    if (el) el.style.display = key === role ? '' : 'none';
+  Object.entries(views).forEach(([key, el]) => {
+    if (el) el.style.display = key === role ? 'block' : 'none';
   });
 
-  if (role === 'admin') loadAdminDashboard();
+  // Ocultar del sidebar los enlaces que son solo para alumnos
+  document.querySelectorAll('.sidebar__role-student').forEach(link => {
+    link.style.display = role === 'student' ? '' : 'none';
+  });
+
   if (role === 'teacher') loadTeacherDashboard();
-}
-
-async function loadAdminDashboard() {
-  try {
-    const [profiles, stats, courses] = await Promise.all([
-      fetchAllProfiles(),
-      fetchRealStats(),
-      fetchCoursesWithTeacher(),
-    ]);
-
-    const students = profiles.filter(p => p.role === 'student').length;
-    const teachers = profiles.filter(p => p.role === 'teacher').length;
-
-    document.getElementById('adminStatStudents').textContent = students;
-    document.getElementById('adminStatTeachers').textContent = teachers;
-    document.getElementById('adminStatRevenue').textContent = `$${stats.totalRevenue.toLocaleString('es-AR')}`;
-    document.getElementById('adminStatCourses').textContent = courses.length;
-
-    const teacherOptions = profiles.filter(p => p.role === 'teacher');
-    document.getElementById('adminCoursesList').innerHTML = courses.length
-      ? courses.map(c => `
-        <div class="lesson__item">
-          <div class="lesson__info">
-            <strong>${escapeHtmlApp(c.title)}</strong>
-            <span>${escapeHtmlApp(c.level || '')}${c.profiles ? ' · ' + escapeHtmlApp(c.profiles.display_name || c.profiles.email) : ' · Sin profesor asignado'}</span>
-          </div>
-          <select onchange="handleAssignTeacher('${c.id}', this.value)">
-            <option value="">Asignar profesor…</option>
-            ${teacherOptions.map(t => `<option value="${t.id}" ${t.id === c.teacher_id ? 'selected' : ''}>${escapeHtmlApp(t.display_name || t.email)}</option>`).join('')}
-          </select>
-        </div>
-      `).join('')
-      : '<p style="opacity:.7">No hay cursos cargados todavía.</p>';
-
-    document.getElementById('adminRecentUsers').innerHTML = profiles.slice(0, 5).map(p => `
-      <div class="lesson__item">
-        <div class="lesson__info">
-          <strong>${escapeHtmlApp(p.display_name || p.email)}</strong>
-          <span>${escapeHtmlApp(p.role)}</span>
-        </div>
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error('Error cargando panel admin:', err.message);
-  }
-}
-
-async function handleAssignTeacher(courseId, teacherId) {
-  if (!teacherId) return;
-  try {
-    await assignTeacherToCourse(courseId, teacherId);
-    showToast('✓ Profesor asignado');
-    loadAdminDashboard();
-  } catch (err) {
-    alert('Error asignando profesor: ' + err.message);
-  }
+  if (role === 'admin')   loadAdminDashboard();
 }
 
 async function loadTeacherDashboard() {
+  const list = document.getElementById('teacherCoursesList');
+  if (!list || !CurrentProfile) return;
+  list.innerHTML = '<p style="opacity:.6">Cargando tus cursos…</p>';
   try {
-    const courses = await fetchTeacherCourses(CurrentProfile.id);
-    const studentCount = await fetchTeacherStudentCount(CurrentProfile.id);
+    const courses = await fetchCoursesForTeacher(CurrentProfile.id);
+    document.getElementById('teacherCourseCount').textContent = courses.length;
+    document.getElementById('teacherStudentCount').textContent = '—'; // TODO: sumar cuando exista inscripción por curso
 
-    document.getElementById('teacherStatCourses').textContent = courses.length;
-    document.getElementById('teacherStatStudents').textContent = studentCount;
-    document.getElementById('teacherStatMaterials').textContent = '—';
-
-    document.getElementById('teacherCoursesList').innerHTML = courses.length
-      ? courses.map(c => `
-        <div class="lesson__item">
-          <div class="lesson__info">
-            <strong>${escapeHtmlApp(c.title)}</strong>
-            <span>${escapeHtmlApp(c.level || '')}</span>
-          </div>
+    if (!courses.length) {
+      list.innerHTML = '<p>Todavía no tenés cursos asignados. Pedile a un admin que te asigne uno.</p>';
+      return;
+    }
+    list.innerHTML = `<div class="lesson__list">` + courses.map(c => `
+      <div class="lesson__item">
+        <div class="lesson__thumb" role="img" aria-label="Libro">📘</div>
+        <div class="lesson__info">
+          <strong>${escapeHtml(c.title)}</strong>
+          <span>${escapeHtml(c.age_group || '—')} · ${escapeHtml(c.level || '—')}${c.sublevel ? ' · Grado ' + escapeHtml(c.sublevel) : ''}</span>
         </div>
-      `).join('')
-      : '<p style="opacity:.7">Todavía no tenés cursos asignados. Pedile a un admin que te asigne uno.</p>';
+      </div>`).join('') + `</div>`;
   } catch (err) {
-    console.error('Error cargando panel docente:', err.message);
+    list.innerHTML = '<p style="color:var(--red)">⚠ ' + err.message + '</p>';
   }
 }
 
-function escapeHtmlApp(str) {
-  return String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function loadAdminDashboard() {
+  const container = document.getElementById('adminCoursesGrouped');
+  if (!container) return;
+  container.innerHTML = '<p style="opacity:.6">Cargando cursos…</p>';
+  try {
+    const [grouped, roleCounts] = await Promise.all([
+      fetchAllCoursesGrouped(),
+      fetchProfileCountsByRole(),
+    ]);
+
+    document.getElementById('adminTeacherCount').textContent = roleCounts.teacher;
+    document.getElementById('adminStudentCount').textContent = roleCounts.student;
+
+    const ageLabels = { starter: 'Starter', medium: 'Medium', elder: 'Elder', sin_asignar: 'Sin grupo de edad' };
+    let totalCourses = 0;
+    let html = '';
+    Object.entries(grouped).forEach(([ageKey, levels]) => {
+      html += `<h4 style="margin:1.25rem 0 .5rem">${ageLabels[ageKey] || ageKey}</h4>`;
+      Object.entries(levels).forEach(([levelKey, courses]) => {
+        totalCourses += courses.length;
+        html += `<div style="margin-bottom:.75rem">
+          <strong style="opacity:.7">${escapeHtml(levelKey)}</strong>
+          <div class="dash__cards" style="margin-top:.4rem">
+            ${courses.map(c => `
+              <div class="dash__card">
+                <div class="dash__card-icon" role="img" aria-label="Libro">📗</div>
+                <div class="dash__card-info">
+                  <span class="dash__card-label">${escapeHtml(c.title)}${c.sublevel ? ' · Grado ' + escapeHtml(c.sublevel) : ''}</span>
+                  <span class="dash__card-value" style="font-size:.95rem">
+                    ${c.profiles?.display_name ? escapeHtml(c.profiles.display_name) : 'Sin docente asignado'}
+                  </span>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+      });
+    });
+
+    document.getElementById('adminCourseCount').textContent = totalCourses;
+    container.innerHTML = html || '<p>Todavía no hay cursos cargados.</p>';
+  } catch (err) {
+    container.innerHTML = '<p style="color:var(--red)">⚠ ' + err.message + '</p>';
+  }
 }
 
 // ── Abrir / cerrar modal ─────────────────────────
@@ -1106,6 +1103,7 @@ function renderNavGuest() {
   const user  = document.getElementById('navUser');
   if (guest) guest.style.display = '';
   if (user)  user.style.display  = 'none';
+  applyRoleToDashboard('student');
 }
 
 // ── Helpers ──────────────────────────────────────
