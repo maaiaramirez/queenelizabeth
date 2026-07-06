@@ -2,7 +2,11 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<title>Biblioteca - Admin</title>
+<title>Biblioteca — Admin · Queen Elizabeth Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
@@ -12,43 +16,55 @@
   // supabaseClient se crea una sola vez, dentro de library.js,
   // usando SUPABASE_URL / SUPABASE_ANON_KEY definidos arriba.
 </script>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-  .breadcrumb { margin-bottom: 1rem; color: #555; }
-  .breadcrumb span { cursor: pointer; color: #2563eb; }
-  ul { list-style: none; padding: 0; }
-  li { display: flex; justify-content: space-between; align-items: center; padding: .5rem; border-bottom: 1px solid #eee; }
-  .folder { cursor: pointer; font-weight: 600; }
-  .actions button { margin-left: .5rem; }
-  .toolbar { display: flex; gap: .5rem; margin: 1rem 0; flex-wrap: wrap; }
-  dialog { border-radius: 8px; border: none; padding: 1.5rem; min-width: 300px; }
-  label { display: block; margin-top: .75rem; font-size: .9rem; }
-  input, select { width: 100%; padding: .4rem; margin-top: .25rem; }
-</style>
 </head>
-<body>
+<body class="lib-body">
+<div class="lib-wrap">
 
-<h1>Biblioteca de materiales (Admin)</h1>
-<div class="breadcrumb" id="breadcrumb"></div>
+  <div class="lib-header">
+    <div class="lib-header__brand">
+      <div class="lib-header__crest" aria-hidden="true">QE</div>
+      <div>
+        <div class="lib-header__title">Biblioteca de materiales</div>
+        <div class="lib-header__subtitle">Panel de Administración</div>
+      </div>
+    </div>
+    <button class="lib-header__back" onclick="location.href='index.html'">← Volver al Dashboard</button>
+  </div>
 
-<div class="toolbar">
-  <button onclick="newFolderDialog.showModal()">+ Nueva carpeta</button>
-  <button onclick="uploadFileDialog.showModal()">+ Subir archivo</button>
-  <button onclick="addLinkDialog.showModal()">+ Agregar video/link</button>
+  <div class="lib-breadcrumb" id="breadcrumb"></div>
+
+  <div class="lib-toolbar">
+    <button class="btn btn--gold btn--sm" onclick="newFolderDialog.showModal()">📁 Nueva carpeta</button>
+    <button class="btn btn--primary btn--sm" onclick="uploadFileDialog.showModal()">⬆ Subir archivo</button>
+    <button class="btn btn--outline-navy btn--sm" onclick="addLinkDialog.showModal()">🔗 Agregar video/link</button>
+  </div>
+
+  <div id="folderSection">
+    <p class="lib-section-label" id="folderSectionLabel" style="display:none">Carpetas</p>
+    <div class="lib-grid" id="folderList"></div>
+  </div>
+
+  <div id="itemSection" style="margin-top:1.25rem">
+    <p class="lib-section-label" id="itemSectionLabel" style="display:none">Materiales</p>
+    <div class="lib-grid" id="itemList"></div>
+  </div>
+
+  <div id="emptyState" style="display:none" class="lib-empty">
+    <div class="lib-empty__icon">📭</div>
+    Esta carpeta está vacía.
+  </div>
+
 </div>
-
-<ul id="folderList"></ul>
-<ul id="itemList"></ul>
 
 <!-- Dialog: nueva carpeta -->
 <dialog id="newFolderDialog">
   <h3>Nueva carpeta</h3>
   <label>Nombre
-    <input id="newFolderName" type="text" />
+    <input id="newFolderName" type="text" placeholder="Ej: Nivel B1" />
   </label>
-  <div class="toolbar">
-    <button onclick="newFolderDialog.close()">Cancelar</button>
-    <button onclick="handleCreateFolder()">Crear</button>
+  <div class="lib-toolbar">
+    <button class="btn btn--outline-navy btn--sm" onclick="newFolderDialog.close()">Cancelar</button>
+    <button class="btn btn--primary btn--sm" onclick="handleCreateFolder()">Crear</button>
   </div>
 </dialog>
 
@@ -69,9 +85,9 @@
   <label>Asociar a lección (opcional, ID)
     <input id="uploadLessonId" type="text" placeholder="lesson id (opcional)" />
   </label>
-  <div class="toolbar">
-    <button onclick="uploadFileDialog.close()">Cancelar</button>
-    <button id="uploadFileBtn" onclick="handleUploadFile()">Subir</button>
+  <div class="lib-toolbar">
+    <button class="btn btn--outline-navy btn--sm" onclick="uploadFileDialog.close()">Cancelar</button>
+    <button class="btn btn--primary btn--sm" id="uploadFileBtn" onclick="handleUploadFile()">Subir</button>
   </div>
 </dialog>
 
@@ -93,9 +109,9 @@
   <label>Asociar a lección (opcional, ID)
     <input id="linkLessonId" type="text" placeholder="lesson id (opcional)" />
   </label>
-  <div class="toolbar">
-    <button onclick="addLinkDialog.close()">Cancelar</button>
-    <button onclick="handleAddLink()">Agregar</button>
+  <div class="lib-toolbar">
+    <button class="btn btn--outline-navy btn--sm" onclick="addLinkDialog.close()">Cancelar</button>
+    <button class="btn btn--primary btn--sm" onclick="handleAddLink()">Agregar</button>
   </div>
 </dialog>
 
@@ -105,12 +121,26 @@
   let breadcrumbTrail = []; // [{id, name}]
   let itemsCache = new Map(); // id -> item, evita re-incrustar JSON en el HTML
 
+  const ICONS = { pdf: '📄', video: '🎬', audio: '🎵', image: '🖼️', document: '📝', link: '🔗' };
+
   async function render() {
     renderBreadcrumb();
     const folderList = document.getElementById('folderList');
     const itemList = document.getElementById('itemList');
-    folderList.innerHTML = '<li style="cursor:default;color:#888">Cargando…</li>';
+    const folderLabel = document.getElementById('folderSectionLabel');
+    const itemLabel = document.getElementById('itemSectionLabel');
+    const empty = document.getElementById('emptyState');
+
+    folderList.innerHTML = '';
     itemList.innerHTML = '';
+    empty.style.display = 'none';
+    folderLabel.style.display = 'none';
+    itemLabel.style.display = 'none';
+    document.querySelectorAll('.lib-loading').forEach(el => el.remove());
+    const loadingEl = document.createElement('p');
+    loadingEl.className = 'lib-loading';
+    loadingEl.textContent = 'Cargando…';
+    folderList.after(loadingEl);
 
     let folders = [];
     let items = [];
@@ -120,41 +150,52 @@
         getItems({ folderId: currentFolderId }),
       ]);
     } catch (e) {
-      folderList.innerHTML = `<li style="cursor:default;color:#c00">⚠ Error cargando: ${escapeHtml(e.message)}</li>`;
+      loadingEl.remove();
+      folderList.innerHTML = `<p class="lib-error">⚠ Error cargando: ${escapeHtml(e.message)}</p>`;
       return;
     }
+    loadingEl.remove();
 
     itemsCache = new Map(items.map(i => [i.id, i]));
 
-    folderList.innerHTML = folders.map(f => `
-      <li>
-        <span class="folder" onclick="enterFolder('${f.id}', '${escapeHtml(f.name)}')">📁 ${escapeHtml(f.name)}</span>
-        <span class="actions">
-          <button onclick="handleRenameFolder('${f.id}')">Renombrar</button>
-          <button onclick="handleDeleteFolder('${f.id}')">Borrar</button>
-        </span>
-      </li>
-    `).join('');
+    if (folders.length) {
+      folderLabel.style.display = '';
+      folderList.innerHTML = folders.map(f => `
+        <div class="lib-card lib-card--folder" onclick="enterFolder('${f.id}', '${escapeHtml(f.name)}')">
+          <div class="lib-card__top">
+            <div class="lib-card__icon">📁</div>
+            <div class="lib-card__name">${escapeHtml(f.name)}</div>
+          </div>
+          <div class="lib-card__actions" onclick="event.stopPropagation()">
+            <button onclick="handleRenameFolder('${f.id}')">✏️ Renombrar</button>
+            <button class="danger" onclick="handleDeleteFolder('${f.id}')">🗑 Borrar</button>
+          </div>
+        </div>
+      `).join('');
+    }
 
-    itemList.innerHTML = items.map(i => `
-      <li>
-        <span onclick="handleOpenItem('${i.id}')" style="cursor:pointer">
-          ${iconFor(i.type)} ${escapeHtml(i.name)}
-          ${i.lesson_id ? `<small style="color:#888"> (lección: ${escapeHtml(i.lesson_id)})</small>` : ''}
-        </span>
-        <span class="actions">
-          <button onclick="handleDeleteItem('${i.id}')">Borrar</button>
-        </span>
-      </li>
-    `).join('');
+    if (items.length) {
+      itemLabel.style.display = '';
+      itemList.innerHTML = items.map(i => `
+        <div class="lib-card">
+          <div class="lib-card__top">
+            <div class="lib-card__icon">${ICONS[i.type] || '📦'}</div>
+            <div>
+              <div class="lib-card__name">${escapeHtml(i.name)}</div>
+              ${i.lesson_id ? `<div class="lib-card__meta">Lección: ${escapeHtml(i.lesson_id)}</div>` : ''}
+            </div>
+          </div>
+          <div class="lib-card__actions">
+            <button onclick="handleOpenItem('${i.id}')">👁 Abrir</button>
+            <button class="danger" onclick="handleDeleteItem('${i.id}')">🗑 Borrar</button>
+          </div>
+        </div>
+      `).join('');
+    }
 
     if (!folders.length && !items.length) {
-      itemList.innerHTML = '<li style="cursor:default;color:#888">Esta carpeta está vacía.</li>';
+      empty.style.display = '';
     }
-  }
-
-  function iconFor(type) {
-    return { pdf: '📄', video: '🎬', audio: '🎵', image: '🖼️', document: '📝', link: '🔗' }[type] || '📦';
   }
 
   function escapeHtml(str) {
@@ -165,7 +206,7 @@
     const el = document.getElementById('breadcrumb');
     const root = `<span onclick="goToBreadcrumb(-1)">🏠 Raíz</span>`;
     const rest = breadcrumbTrail.map((b, idx) =>
-      ` / <span onclick="goToBreadcrumb(${idx})">${escapeHtml(b.name)}</span>`
+      `<span class="lib-breadcrumb__sep">/</span><span onclick="goToBreadcrumb(${idx})">${escapeHtml(b.name)}</span>`
     ).join('');
     el.innerHTML = root + rest;
   }
