@@ -614,16 +614,18 @@ async function unlockAdmin() {
     document.getElementById('adminContent').style.display = 'block';
 
     // Crear cursos es solo para admin; el docente solo crea lecciones
-    // dentro de los cursos que ya tiene asignados.
+    // dentro de los cursos que ya tiene asignados. Se oculta SOLO si
+    // el rol es explícitamente 'teacher' (por defecto queda visible).
     const createCoursePanel = document.getElementById('createCoursePanel');
     if (createCoursePanel) {
-      createCoursePanel.style.display = CurrentProfile?.role === 'admin' ? '' : 'none';
+      createCoursePanel.style.display = CurrentProfile?.role === 'teacher' ? 'none' : '';
     }
 
     loadAdminLessonOptions();
     loadAdminCourseOptions();
     loadAdminMaterialsList();
     loadTeacherSalesPanel();
+    loadEnrollPanelOptions();
   } else {
     showToast('⚠ Solo docentes y administradores pueden acceder. Iniciá sesión con el rol correcto.');
   }
@@ -650,7 +652,7 @@ async function loadAdminCourseOptions() {
 
 async function handleCreateCourse(event) {
   event.preventDefault();
-  if (CurrentProfile?.role !== 'admin') {
+  if (CurrentProfile?.role === 'teacher') {
     showToast('⚠ Solo un administrador puede crear cursos.');
     return;
   }
@@ -721,22 +723,34 @@ async function loadAdminLessonOptions() {
 async function loadAdminMaterialsList() {
   const container = document.getElementById('adminMaterialsList');
   if (!container) return;
-  container.innerHTML = 'Cargando…';
+  container.innerHTML = '<p class="lib-loading">Cargando…</p>';
   try {
     const materials = await fetchAllMaterials();
-    if (!materials.length) { container.innerHTML = '<p>No hay materiales todavía.</p>'; return; }
-    container.innerHTML = materials.map(m => `
-      <div class="lesson__item" style="cursor:default">
-        <div class="lesson__thumb">${TYPE_ICONS[m.type] || '📁'}</div>
-        <div class="lesson__info" style="flex:1">
-          <strong>${escapeHtml(m.title)}</strong>
-          <span>${m.type} · ${new Date(m.created_at).toLocaleDateString()}</span>
+    if (!materials.length) {
+      container.innerHTML = `<div class="lib-empty"><div class="lib-empty__icon">📭</div>Todavía no subiste ningún material.</div>`;
+      return;
+    }
+    container.innerHTML = `<div class="lib-grid">` + materials.map(m => {
+      const courseName = m.lessons?.courses?.title || 'Sin curso';
+      const lessonName = m.lessons?.title || 'General';
+      return `
+      <div class="lib-card">
+        <div class="lib-card__top">
+          <div class="lib-card__icon">${TYPE_ICONS[m.type] || '📁'}</div>
+          <div>
+            <div class="lib-card__name">${escapeHtml(m.title)}</div>
+            <div class="lib-card__meta">${escapeHtml(courseName)} · ${escapeHtml(lessonName)}</div>
+            <div class="lib-card__meta">${new Date(m.created_at).toLocaleDateString('es-AR')}</div>
+          </div>
         </div>
-        <button class="btn btn--ghost btn--sm" onclick="handleDeleteMaterial('${m.id}', '${m.file_path || ''}')">🗑 Borrar</button>
-      </div>`).join('');
+        <div class="lib-card__actions">
+          <button class="danger" onclick="handleDeleteMaterial('${m.id}', '${m.file_path || ''}')">🗑 Borrar</button>
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
   } catch (err) {
     console.error(err);
-    container.innerHTML = '⚠ Error cargando materiales.';
+    container.innerHTML = '<p class="lib-error">⚠ Error cargando materiales.</p>';
   }
 }
 
@@ -958,30 +972,34 @@ async function loadAdminDashboard() {
       ${teachers.map(t => `<option value="${t.id}" ${t.id === selectedId ? 'selected' : ''}>${escapeHtml(t.display_name || t.email)}</option>`).join('')}
     `;
 
+    const ageIcons = { starter: '🌱', medium: '🌿', elder: '🌳', sin_asignar: '❔' };
     const ageLabels = { starter: 'Starter', medium: 'Medium', elder: 'Elder', sin_asignar: 'Sin grupo de edad' };
     let totalCourses = 0;
     let html = '';
     Object.entries(grouped).forEach(([ageKey, levels]) => {
-      html += `<h4 style="margin:1.25rem 0 .5rem">${ageLabels[ageKey] || ageKey}</h4>`;
+      html += `<div class="admin-group">
+        <h4 class="admin-group__title">${ageIcons[ageKey] || '📁'} ${ageLabels[ageKey] || escapeHtml(ageKey)}</h4>`;
       Object.entries(levels).forEach(([levelKey, courses]) => {
         totalCourses += courses.length;
-        html += `<div style="margin-bottom:.75rem">
-          <strong style="opacity:.7">${escapeHtml(levelKey)}</strong>
-          <div class="dash__cards" style="margin-top:.4rem">
+        html += `<div class="admin-level-row">
+          <span class="admin-level-badge">🎯 ${escapeHtml(levelKey)}</span>
+          <div class="teacher__courses-grid">
             ${courses.map(c => `
-              <div class="dash__card">
-                <div class="dash__card-icon" role="img" aria-label="Libro">📗</div>
-                <div class="dash__card-info">
-                  <span class="dash__card-label">${escapeHtml(c.title)}${c.sublevel ? ' · Grado ' + escapeHtml(c.sublevel) : ''}</span>
-                  <select class="course-teacher-select" data-course-id="${c.id}" onchange="handleAssignTeacher('${c.id}', this.value)" style="margin-top:.35rem;padding:.3rem;border-radius:6px;border:1px solid #ccc;font-size:.85rem">
-                    ${teacherOptions(c.teacher_id)}
-                  </select>
-                </div>
+              <div class="admin-course-card">
+                <div class="admin-course-card__title">📗 ${escapeHtml(c.title)}${c.sublevel ? ' · Grado ' + escapeHtml(c.sublevel) : ''}</div>
+                <select data-course-id="${c.id}" onchange="handleAssignTeacher('${c.id}', this.value)">
+                  ${teacherOptions(c.teacher_id)}
+                </select>
               </div>`).join('')}
           </div>
         </div>`;
       });
+      html += `</div>`;
     });
+
+    if (!totalCourses) {
+      html = `<div class="admin-empty">📭 Todavía no hay cursos cargados. Creá el primero desde "Panel Docente".</div>`;
+    }
 
     document.getElementById('adminCourseCount').textContent = totalCourses;
     container.innerHTML = html || '<p>Todavía no hay cursos cargados.</p>';
@@ -1203,6 +1221,92 @@ async function handleTeacherSaleStatus(saleId, newStatus) {
   }
 }
 
+/* ═══════════════════════════════════════════════════
+   ASIGNAR ALUMNOS A CURSO — Panel Docente
+═══════════════════════════════════════════════════ */
+async function loadEnrollPanelOptions() {
+  const courseSelect = document.getElementById('enrollCourseSelect');
+  const studentSelect = document.getElementById('enrollStudentSelect');
+  if (!courseSelect || !studentSelect || !CurrentProfile) return;
+
+  try {
+    const isAdmin = CurrentProfile.role === 'admin';
+    const [courses, students] = await Promise.all([
+      isAdmin ? fetchCourses() : fetchCoursesForTeacher(CurrentProfile.id),
+      fetchAllStudents(),
+    ]);
+
+    courseSelect.innerHTML = courses.length
+      ? courses.map(c => `<option value="${c.id}">${escapeHtml(c.title)} (${c.level || '—'})</option>`).join('')
+      : '<option value="">Sin cursos disponibles</option>';
+
+    studentSelect.innerHTML = students.length
+      ? students.map(s => `<option value="${s.id}">${escapeHtml(s.display_name || s.email)}</option>`).join('')
+      : '<option value="">No hay alumnos registrados</option>';
+
+    loadEnrolledStudentsList();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function loadEnrolledStudentsList() {
+  const list = document.getElementById('enrolledStudentsList');
+  const courseId = document.getElementById('enrollCourseSelect')?.value;
+  if (!list) return;
+  if (!courseId) { list.innerHTML = '<p class="lib-loading">Elegí un curso arriba ↑</p>'; return; }
+
+  list.innerHTML = '<p class="lib-loading">Cargando…</p>';
+  try {
+    const students = await fetchCourseStudents(courseId);
+    if (!students.length) {
+      list.innerHTML = '<p style="font-size:.85rem;opacity:.65">Todavía no hay alumnos inscriptos en este curso.</p>';
+      return;
+    }
+    list.innerHTML = students.map(s => `
+      <div class="enrolled-row">
+        <div>
+          <div class="enrolled-row__name">${escapeHtml(s.display_name || '—')}</div>
+          <div class="enrolled-row__email">${escapeHtml(s.email || '')}</div>
+        </div>
+        <button onclick="handleUnenrollStudent('${s.id}', '${courseId}')">Quitar</button>
+      </div>`).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="lib-error">⚠ ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+async function handleEnrollStudent(event) {
+  event.preventDefault();
+  const status = document.getElementById('enrollStatus');
+  const courseId = document.getElementById('enrollCourseSelect').value;
+  const studentId = document.getElementById('enrollStudentSelect').value;
+  if (!courseId || !studentId) { showToast('⚠ Elegí un curso y un alumno'); return; }
+
+  status.textContent = 'Inscribiendo…';
+  try {
+    await enrollStudent(studentId, courseId);
+    status.textContent = '✓ Inscripto';
+    showToast('✓ Alumno inscripto en el curso');
+    loadEnrolledStudentsList();
+  } catch (err) {
+    status.textContent = '⚠ Error';
+    showToast(err.message?.includes('duplicate') ? '⚠ Ese alumno ya estaba inscripto' : '⚠ No se pudo inscribir al alumno');
+  }
+}
+
+async function handleUnenrollStudent(studentId, courseId) {
+  if (!confirm('¿Quitar a este alumno del curso?')) return;
+  try {
+    await unenrollStudent(studentId, courseId);
+    showToast('✓ Alumno dado de baja del curso');
+    loadEnrolledStudentsList();
+  } catch (err) {
+    showToast('⚠ No se pudo quitar al alumno');
+  }
+}
+
 // ── Abrir / cerrar modal ─────────────────────────
 function openAuthModal(tab = 'login') {
   const overlay = document.getElementById('authOverlay');
@@ -1412,3 +1516,4 @@ function traducirError(msg) {
   if (msg.includes('Password should be'))        return 'La contraseña debe tener al menos 6 caracteres.';
   return msg;
 }
+
