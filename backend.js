@@ -278,6 +278,32 @@ async function fetchCourseStudents(courseId) {
 }
 
 /**
+ * Lista de alumnos disponibles para inscribir (usado en "Asignar Alumnos").
+ * Requiere la policy "profiles: teacher ve alumnos" (ver migración).
+ */
+async function fetchAllStudents() {
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .select("id, display_name, email")
+    .eq("role", "student")
+    .order("display_name");
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Da de baja a un alumno de un curso.
+ */
+async function unenrollStudent(studentId, courseId) {
+  const { error } = await supabaseClient
+    .from("enrollments")
+    .delete()
+    .eq("student_id", studentId)
+    .eq("course_id", courseId);
+  if (error) throw error;
+}
+
+/**
  * Alias usado por el dashboard docente (app.js): cursos asignados a un profesor.
  */
 async function fetchCoursesForTeacher(teacherId) {
