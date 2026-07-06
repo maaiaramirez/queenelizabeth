@@ -25,19 +25,13 @@
       <div class="lib-header__crest" aria-hidden="true">QE</div>
       <div>
         <div class="lib-header__title">Biblioteca de materiales</div>
-        <div class="lib-header__subtitle">Panel Docente</div>
+        <div class="lib-header__subtitle">Panel Docente · Solo lectura</div>
       </div>
     </div>
     <button class="lib-header__back" onclick="location.href='index.html'">← Volver al Dashboard</button>
   </div>
 
   <div class="lib-breadcrumb" id="breadcrumb"></div>
-
-  <div class="lib-toolbar">
-    <button class="btn btn--gold btn--sm" onclick="newFolderDialog.showModal()">📁 Nueva carpeta</button>
-    <button class="btn btn--primary btn--sm" onclick="uploadFileDialog.showModal()">⬆ Subir archivo</button>
-    <button class="btn btn--outline-navy btn--sm" onclick="addLinkDialog.showModal()">🔗 Agregar video/link</button>
-  </div>
 
   <div id="folderSection">
     <p class="lib-section-label" id="folderSectionLabel" style="display:none">Carpetas</p>
@@ -55,65 +49,6 @@
   </div>
 
 </div>
-
-<!-- Dialog: nueva carpeta -->
-<dialog id="newFolderDialog">
-  <h3>Nueva carpeta</h3>
-  <label>Nombre
-    <input id="newFolderName" type="text" placeholder="Ej: Nivel B1" />
-  </label>
-  <div class="lib-toolbar">
-    <button class="btn btn--outline-navy btn--sm" onclick="newFolderDialog.close()">Cancelar</button>
-    <button class="btn btn--primary btn--sm" onclick="handleCreateFolder()">Crear</button>
-  </div>
-</dialog>
-
-<!-- Dialog: subir archivo -->
-<dialog id="uploadFileDialog">
-  <h3>Subir archivo</h3>
-  <label>Tipo
-    <select id="uploadType">
-      <option value="pdf">PDF</option>
-      <option value="image">Imagen</option>
-      <option value="audio">Audio</option>
-      <option value="document">Word/PowerPoint</option>
-    </select>
-  </label>
-  <label>Archivo
-    <input id="uploadFile" type="file" />
-  </label>
-  <label>Asociar a lección (opcional, ID)
-    <input id="uploadLessonId" type="text" placeholder="lesson id (opcional)" />
-  </label>
-  <div class="lib-toolbar">
-    <button class="btn btn--outline-navy btn--sm" onclick="uploadFileDialog.close()">Cancelar</button>
-    <button class="btn btn--primary btn--sm" id="uploadFileBtn" onclick="handleUploadFile()">Subir</button>
-  </div>
-</dialog>
-
-<!-- Dialog: agregar link/video -->
-<dialog id="addLinkDialog">
-  <h3>Agregar video o link externo</h3>
-  <label>Tipo
-    <select id="linkType">
-      <option value="video">Video (YouTube/Vimeo)</option>
-      <option value="link">Link externo</option>
-    </select>
-  </label>
-  <label>Nombre
-    <input id="linkName" type="text" />
-  </label>
-  <label>URL
-    <input id="linkUrl" type="text" placeholder="https://..." />
-  </label>
-  <label>Asociar a lección (opcional, ID)
-    <input id="linkLessonId" type="text" placeholder="lesson id (opcional)" />
-  </label>
-  <div class="lib-toolbar">
-    <button class="btn btn--outline-navy btn--sm" onclick="addLinkDialog.close()">Cancelar</button>
-    <button class="btn btn--primary btn--sm" onclick="handleAddLink()">Agregar</button>
-  </div>
-</dialog>
 
 <script src="library.js"></script>
 <script>
@@ -158,6 +93,7 @@
 
     itemsCache = new Map(items.map(i => [i.id, i]));
 
+    // Solo lectura: las carpetas se pueden abrir, pero no renombrar ni borrar.
     if (folders.length) {
       folderLabel.style.display = '';
       folderList.innerHTML = folders.map(f => `
@@ -166,14 +102,11 @@
             <div class="lib-card__icon">📁</div>
             <div class="lib-card__name">${escapeHtml(f.name)}</div>
           </div>
-          <div class="lib-card__actions" onclick="event.stopPropagation()">
-            <button onclick="handleRenameFolder('${f.id}')">✏️ Renombrar</button>
-            <button class="danger" onclick="handleDeleteFolder('${f.id}')">🗑 Borrar</button>
-          </div>
         </div>
       `).join('');
     }
 
+    // Solo lectura: cada material tiene únicamente el botón de abrir/descargar.
     if (items.length) {
       itemLabel.style.display = '';
       itemList.innerHTML = items.map(i => `
@@ -186,8 +119,7 @@
             </div>
           </div>
           <div class="lib-card__actions">
-            <button onclick="handleOpenItem('${i.id}')">👁 Abrir</button>
-            <button class="danger" onclick="handleDeleteItem('${i.id}')">🗑 Borrar</button>
+            <button onclick="handleOpenItem('${i.id}')">⬇ Abrir / Descargar</button>
           </div>
         </div>
       `).join('');
@@ -228,83 +160,6 @@
     render();
   }
 
-  async function handleCreateFolder() {
-    const name = document.getElementById('newFolderName').value.trim();
-    if (!name) return;
-    try {
-      await createFolder(name, currentFolderId);
-      document.getElementById('newFolderName').value = '';
-      newFolderDialog.close();
-      render();
-    } catch (e) {
-      alert('Error creando carpeta: ' + e.message);
-    }
-  }
-
-  async function handleRenameFolder(id) {
-    const newName = prompt('Nuevo nombre:');
-    if (!newName) return;
-    try {
-      await renameFolder(id, newName.trim());
-      render();
-    } catch (e) {
-      alert('Error al renombrar: ' + e.message);
-    }
-  }
-
-  async function handleDeleteFolder(id) {
-    if (!confirm('¿Borrar esta carpeta? Las subcarpetas también se borran.')) return;
-    try {
-      await deleteFolder(id);
-      render();
-    } catch (e) {
-      alert('Error al borrar: ' + e.message);
-    }
-  }
-
-  async function handleUploadFile() {
-    const type = document.getElementById('uploadType').value;
-    const fileInput = document.getElementById('uploadFile');
-    const lessonId = document.getElementById('uploadLessonId').value.trim() || null;
-    const file = fileInput.files[0];
-    if (!file) return alert('Elegí un archivo');
-
-    const btn = document.getElementById('uploadFileBtn');
-    btn.disabled = true;
-    btn.textContent = 'Subiendo…';
-    try {
-      await uploadFileItem({ file, type, folderId: currentFolderId, lessonId });
-      fileInput.value = '';
-      document.getElementById('uploadLessonId').value = '';
-      uploadFileDialog.close();
-      render();
-    } catch (e) {
-      alert('Error subiendo archivo: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Subir';
-    }
-  }
-
-  async function handleAddLink() {
-    const type = document.getElementById('linkType').value;
-    const name = document.getElementById('linkName').value.trim();
-    const url = document.getElementById('linkUrl').value.trim();
-    const lessonId = document.getElementById('linkLessonId').value.trim() || null;
-    if (!name || !url) return alert('Completá nombre y URL');
-
-    try {
-      await createLinkItem({ name, type, url, folderId: currentFolderId, lessonId });
-      document.getElementById('linkName').value = '';
-      document.getElementById('linkUrl').value = '';
-      document.getElementById('linkLessonId').value = '';
-      addLinkDialog.close();
-      render();
-    } catch (e) {
-      alert('Error agregando link: ' + e.message);
-    }
-  }
-
   async function handleOpenItem(id) {
     const item = itemsCache.get(id);
     if (!item) return;
@@ -312,18 +167,6 @@
       await openItem(item);
     } catch (e) {
       alert('Error al abrir el archivo: ' + e.message);
-    }
-  }
-
-  async function handleDeleteItem(id) {
-    const item = itemsCache.get(id);
-    if (!item) return;
-    if (!confirm(`¿Borrar "${item.name}"?`)) return;
-    try {
-      await deleteItem(item);
-      render();
-    } catch (e) {
-      alert('Error al eliminar: ' + e.message);
     }
   }
 
