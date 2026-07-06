@@ -609,11 +609,21 @@ async function openMaterial(materialId, url, action) {
 async function unlockAdmin() {
   const hasAccess = await checkTeacherAccess();
   if (hasAccess) {
+    if (!CurrentProfile) CurrentProfile = await getCurrentProfile();
     document.getElementById('adminGate').style.display = 'none';
     document.getElementById('adminContent').style.display = 'block';
+
+    // Crear cursos es solo para admin; el docente solo crea lecciones
+    // dentro de los cursos que ya tiene asignados.
+    const createCoursePanel = document.getElementById('createCoursePanel');
+    if (createCoursePanel) {
+      createCoursePanel.style.display = CurrentProfile?.role === 'admin' ? '' : 'none';
+    }
+
     loadAdminLessonOptions();
     loadAdminCourseOptions();
     loadAdminMaterialsList();
+    loadTeacherSalesPanel();
   } else {
     showToast('⚠ Solo docentes y administradores pueden acceder. Iniciá sesión con el rol correcto.');
   }
@@ -623,10 +633,16 @@ async function loadAdminCourseOptions() {
   const select = document.getElementById('newLessonCourse');
   if (!select) return;
   try {
-    const courses = await fetchCourses();
+    // El docente solo puede crear lecciones en SUS cursos asignados;
+    // el admin ve todos los cursos.
+    const isAdmin = CurrentProfile?.role === 'admin';
+    const courses = isAdmin ? await fetchCourses() : await fetchCoursesForTeacher(CurrentProfile.id);
+
     select.innerHTML = courses.length
       ? courses.map(c => `<option value="${c.id}">${escapeHtml(c.title)} (${c.level || '—'})</option>`).join('')
-      : '<option value="">Primero creá un curso arriba ↑</option>';
+      : isAdmin
+        ? '<option value="">Primero creá un curso arriba ↑</option>'
+        : '<option value="">Todavía no tenés cursos asignados — pedile a un admin</option>';
   } catch (err) {
     select.innerHTML = '<option value="">⚠ Error cargando cursos</option>';
   }
@@ -634,14 +650,18 @@ async function loadAdminCourseOptions() {
 
 async function handleCreateCourse(event) {
   event.preventDefault();
+  if (CurrentProfile?.role !== 'admin') {
+    showToast('⚠ Solo un administrador puede crear cursos.');
+    return;
+  }
   const status = document.getElementById('courseStatus');
   const title      = document.getElementById('newCourseTitle').value.trim();
   const level      = document.getElementById('newCourseLevel').value;
   const age_group  = document.getElementById('newCourseAgeGroup')?.value || null;
   const sublevel   = document.getElementById('newCourseSublevel')?.value || null;
-  // Si quien crea el curso es docente, se asigna a sí mismo automáticamente.
-  // Si es admin, queda "sin asignar" y lo asigna después desde el panel de dirección.
-  const teacher_id = CurrentProfile?.role === 'teacher' ? CurrentProfile.id : null;
+  // Como ahora solo entra acá el admin, el curso queda "sin asignar"
+  // y se asigna después desde el Panel de Dirección.
+  const teacher_id = null;
   if (!title) { showToast('⚠ Falta el nombre del curso'); return; }
 
   status.textContent = 'Creando…';
@@ -1134,6 +1154,53 @@ async function handleUpdateSaleStatus(saleId, newStatus) {
 
 function fmtMoney(n) {
   return '$' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+}
+
+/**
+ * Tabla simplificada de pagos dentro de "Panel Docente" — a diferencia
+ * de Gestión Comercial (solo admin, con balances y gráficos), esto es
+ * nada más marcar pagado/pendiente/cancelado. Accesible a docente y admin.
+ */
+async function loadTeacherSalesPanel() {
+  const tbody = document.getElementById('teacherSalesTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4">Cargando…</td></tr>';
+  try {
+    const sales = await fetchAllSales();
+    if (!sales.length) {
+      tbody.innerHTML = '<tr><td colspan="4">Todavía no hay ventas registradas.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = sales.map(s => `
+      <tr>
+        <td>
+          <strong>${escapeHtml(s.student_name || '—')}</strong><br/>
+          <span style="font-size:.75rem;opacity:.6">${escapeHtml(s.student_email || '')}</span>
+        </td>
+        <td>${escapeHtml(s.plan_name || '—')}</td>
+        <td class="sales__amount">${fmtMoney(Number(s.amount))}</td>
+        <td>
+          <select class="status-select" onchange="handleTeacherSaleStatus('${s.id}', this.value)">
+            <option value="pendiente" ${s.status === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+            <option value="pagado" ${s.status === 'pagado' ? 'selected' : ''}>Pagado</option>
+            <option value="cancelado" ${s.status === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+          </select>
+        </td>
+      </tr>`).join('');
+  } catch (err) {
+    console.error(err);
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--red)">⚠ ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function handleTeacherSaleStatus(saleId, newStatus) {
+  try {
+    await updateSaleStatus(saleId, newStatus);
+    showToast(`✓ Pago marcado como "${newStatus}"`);
+  } catch (err) {
+    console.error(err);
+    showToast('⚠ No se pudo actualizar el pago');
+  }
 }
 
 // ── Abrir / cerrar modal ─────────────────────────
