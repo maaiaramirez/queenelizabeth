@@ -7,6 +7,6 @@ services:
     startCommand: npm start
     envVars:
       - key: SUPABASE_URL
-        sync: https://nuqvqeynhssipmcmebxb.supabase.co/rest/v1/
+        sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: sb_publishable_WjBgPoBpB1ONRrQh_JSucA_X_cCiDZY
+        sync: false
