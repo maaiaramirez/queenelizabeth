@@ -8,8 +8,8 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 app.use(express.json());
 
-// ── Servir el frontend estático ─────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public')));
+// ── Servir el frontend estático (build de Vue en client/dist) ───
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 // ── Cliente de Supabase del lado del servidor ───────────────────
 const supabaseAdmin = createClient(
@@ -58,8 +58,9 @@ async function hasCompletedPrevious(userId, lessonId) {
 }
 
 // ── Fallback: cualquier ruta que no sea /api/* devuelve index.html ──
+// (necesario para que funcione el router de Vue con rutas como /dashboard)
 app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
