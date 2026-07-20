@@ -3,7 +3,7 @@ services:
     name: queen-elizabeth-academy
     env: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && cd client && npm install && npm run build && cd ..
     startCommand: npm start
     envVars:
       - key: SUPABASE_URL
