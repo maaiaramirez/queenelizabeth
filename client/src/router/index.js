@@ -22,6 +22,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/test-de-nivel',
+    name: 'level-test',
+    component: () => import('../views/LevelTestView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/materiales',
     name: 'materiales',
     component: () => import('../views/MaterialsView.vue'),
