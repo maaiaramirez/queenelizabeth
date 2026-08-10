@@ -442,7 +442,7 @@ const auth = useAuthStore()
                 <li>✓ 2 sesiones de tutoría/mes</li>
                 <li>✓ Royal Badges básicos</li>
               </ul>
-              <RouterLink :to="{ name: 'register' }" class="btn btn--plan">Empezar Gratis</RouterLink>
+              <RouterLink :to="{ name: 'register', query: { plan: 'explorer' } }" class="btn btn--plan">Empezar Gratis</RouterLink>
             </div>
             <div class="plan__card plan__card--featured">
               <div class="plan__badge-featured">⭐ Más Popular</div>
@@ -456,7 +456,7 @@ const auth = useAuthStore()
                 <li>✓ Reconocimiento de voz RP</li>
                 <li>✓ Foro de comunidad</li>
               </ul>
-              <RouterLink :to="{ name: 'register' }" class="btn btn--primary btn--plan">Unirme al Scholar</RouterLink>
+              <RouterLink :to="{ name: 'register', query: { plan: 'scholar' } }" class="btn btn--primary btn--plan">Unirme al Scholar</RouterLink>
             </div>
             <div class="plan__card">
               <h3 class="plan__name">Royal</h3>
@@ -468,7 +468,7 @@ const auth = useAuthStore()
                 <li>✓ Certificado con sello real</li>
                 <li>✓ Prioridad en grupos small</li>
               </ul>
-              <RouterLink :to="{ name: 'register' }" class="btn btn--plan btn--gold">Acceso Royal</RouterLink>
+              <RouterLink :to="{ name: 'register', query: { plan: 'royal' } }" class="btn btn--plan btn--gold">Acceso Royal</RouterLink>
             </div>
           </div>
           <p class="cta__guarantee">🔒 Garantía de 30 días. Sin compromisos anuales. Cancela cuando quieras.</p>
