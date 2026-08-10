@@ -1,0 +1,832 @@
+diff --git a/client/src/router/index.js b/client/src/router/index.js
+index 202aecf..bfeb08b 100644
+--- a/client/src/router/index.js
++++ b/client/src/router/index.js
+@@ -21,6 +21,12 @@ const routes = [
+     component: () => import('../views/DashboardView.vue'),
+     meta: { requiresAuth: true },
+   },
++  {
++    path: '/test-de-nivel',
++    name: 'level-test',
++    component: () => import('../views/LevelTestView.vue'),
++    meta: { requiresAuth: true },
++  },
+   {
+     path: '/materiales',
+     name: 'materiales',
+diff --git a/client/src/services/levelTest.js b/client/src/services/levelTest.js
+new file mode 100644
+index 0000000..b54c6ee
+--- /dev/null
++++ b/client/src/services/levelTest.js
+@@ -0,0 +1,65 @@
++import { supabase } from '../lib/supabase'
++
++// El grading real pasa por server.js (service role), NUNCA por el cliente:
++// así el correct_index de cada pregunta jamás viaja al navegador del alumno.
++async function authHeader() {
++  const {
++    data: { session },
++  } = await supabase.auth.getSession()
++  if (!session) throw new Error('Necesitás estar logueado para rendir el test.')
++  return { Authorization: `Bearer ${session.access_token}` }
++}
++
++/**
++ * Trae el banco de preguntas activo (sin correct_index: lo filtra el backend).
++ */
++export async function fetchLevelTestQuestions() {
++  const headers = await authHeader()
++  const res = await fetch('/api/level-test/questions', { headers })
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}))
++    throw new Error(body.error || 'No se pudieron cargar las preguntas del test.')
++  }
++  const { questions } = await res.json()
++  return questions || []
++}
++
++/**
++ * Envía las respuestas + eventos de anti-cheat detectados durante el test.
++ * answers: [{ question_id, selected_index }]
++ * cheatEvents: [{ type: 'blur' | 'visibility' | 'copy' | 'paste' | 'devtools', at: ISOString }]
++ */
++export async function submitLevelTest({ answers, cheatEvents, startedAt }) {
++  const headers = await authHeader()
++  const res = await fetch('/api/level-test/submit', {
++    method: 'POST',
++    headers: { ...headers, 'Content-Type': 'application/json' },
++    body: JSON.stringify({ answers, cheatEvents, startedAt }),
++  })
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}))
++    throw new Error(body.error || 'No se pudo enviar el test.')
++  }
++  const { result } = await res.json()
++  return result
++}
++
++/**
++ * Último resultado del alumno logueado (consulta directa a Supabase,
++ * permitida por RLS de level_test_results para su propio student_id).
++ */
++export async function fetchMyLastLevelTestResult() {
++  const {
++    data: { user },
++  } = await supabase.auth.getUser()
++  if (!user) return null
++  const { data, error } = await supabase
++    .from('level_test_results')
++    .select('*')
++    .eq('student_id', user.id)
++    .order('created_at', { ascending: false })
++    .limit(1)
++    .maybeSingle()
++  if (error) throw error
++  return data
++}
+diff --git a/client/src/services/sales.js b/client/src/services/sales.js
+index 837f097..637ea88 100644
+--- a/client/src/services/sales.js
++++ b/client/src/services/sales.js
+@@ -29,6 +29,50 @@ export async function updateSaleStatus(saleId, status) {
+   if (error) throw error
+ }
+ 
++/**
++ * Registra una venta en estado "pendiente" (usada en el registro cuando
++ * el alumno viene de elegir un plan en la landing, antes de confirmar el
++ * pago). `planId` acá es el slug del plan ('explorer' | 'scholar' | 'royal').
++ */
++export async function registerPendingSale({ planId, planName, amount, studentName, studentEmail, studentUserId }) {
++  const { data, error } = await supabase
++    .from('sales')
++    .insert([
++      {
++        plan_id: planId,
++        plan_name: planName,
++        amount,
++        student_name: studentName,
++        student_email: studentEmail,
++        student_user_id: studentUserId,
++        status: 'pendiente',
++      },
++    ])
++    .select()
++  if (error) throw error
++  return data
++}
++
++/**
++ * Devuelve la venta más reciente del alumno logueado (o null si nunca
++ * generó una). Sirve para saber si tiene un pago pendiente/confirmado.
++ */
++export async function fetchMySaleStatus() {
++  const {
++    data: { user },
++  } = await supabase.auth.getUser()
++  if (!user) return null
++  const { data, error } = await supabase
++    .from('sales')
++    .select('*')
++    .eq('student_user_id', user.id)
++    .order('created_at', { ascending: false })
++    .limit(1)
++    .maybeSingle()
++  if (error) throw error
++  return data
++}
++
+ export function fmtMoney(n) {
+   return '$' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })
+ }
+diff --git a/client/src/views/HomeView.vue b/client/src/views/HomeView.vue
+index 5f63e13..aa09828 100644
+--- a/client/src/views/HomeView.vue
++++ b/client/src/views/HomeView.vue
+@@ -442,7 +442,7 @@ const auth = useAuthStore()
+                 <li>✓ 2 sesiones de tutoría/mes</li>
+                 <li>✓ Royal Badges básicos</li>
+               </ul>
+-              <RouterLink :to="{ name: 'register' }" class="btn btn--plan">Empezar Gratis</RouterLink>
++              <RouterLink :to="{ name: 'register', query: { plan: 'explorer' } }" class="btn btn--plan">Empezar Gratis</RouterLink>
+             </div>
+             <div class="plan__card plan__card--featured">
+               <div class="plan__badge-featured">⭐ Más Popular</div>
+@@ -456,7 +456,7 @@ const auth = useAuthStore()
+                 <li>✓ Reconocimiento de voz RP</li>
+                 <li>✓ Foro de comunidad</li>
+               </ul>
+-              <RouterLink :to="{ name: 'register' }" class="btn btn--primary btn--plan">Unirme al Scholar</RouterLink>
++              <RouterLink :to="{ name: 'register', query: { plan: 'scholar' } }" class="btn btn--primary btn--plan">Unirme al Scholar</RouterLink>
+             </div>
+             <div class="plan__card">
+               <h3 class="plan__name">Royal</h3>
+@@ -468,7 +468,7 @@ const auth = useAuthStore()
+                 <li>✓ Certificado con sello real</li>
+                 <li>✓ Prioridad en grupos small</li>
+               </ul>
+-              <RouterLink :to="{ name: 'register' }" class="btn btn--plan btn--gold">Acceso Royal</RouterLink>
++              <RouterLink :to="{ name: 'register', query: { plan: 'royal' } }" class="btn btn--plan btn--gold">Acceso Royal</RouterLink>
+             </div>
+           </div>
+           <p class="cta__guarantee">🔒 Garantía de 30 días. Sin compromisos anuales. Cancela cuando quieras.</p>
+diff --git a/client/src/views/LevelTestView.vue b/client/src/views/LevelTestView.vue
+new file mode 100644
+index 0000000..1c583ec
+--- /dev/null
++++ b/client/src/views/LevelTestView.vue
+@@ -0,0 +1,283 @@
++<script setup>
++import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
++import { useRouter } from 'vue-router'
++import { fetchLevelTestQuestions, submitLevelTest } from '../services/levelTest'
++import { useToastStore } from '../stores/toast'
++
++const router = useRouter()
++const toast = useToastStore()
++
++// intro -> running -> submitting -> done | error
++const stage = ref('intro')
++const errorMsg = ref('')
++
++const questions = ref([])
++const currentIndex = ref(0)
++const answers = ref({}) // { [question_id]: selected_index }
++const cheatEvents = ref([])
++const startedAt = ref(null)
++
++const result = ref(null)
++
++const TEST_SECONDS = 20 * 60 // 20 minutos, ajustable
++const secondsLeft = ref(TEST_SECONDS)
++let timerHandle = null
++
++const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
++const progressPct = computed(() =>
++  questions.value.length ? Math.round(((currentIndex.value + 1) / questions.value.length) * 100) : 0,
++)
++const selectedForCurrent = computed(() =>
++  currentQuestion.value ? answers.value[currentQuestion.value.id] : undefined,
++)
++const isLastQuestion = computed(() => currentIndex.value === questions.value.length - 1)
++
++const timeLabel = computed(() => {
++  const m = Math.floor(secondsLeft.value / 60)
++  const s = secondsLeft.value % 60
++  return `${m}:${String(s).padStart(2, '0')}`
++})
++
++function logCheatEvent(type) {
++  cheatEvents.value.push({ type, at: new Date().toISOString() })
++}
++
++// ── Anti-cheat: listeners activos solo mientras stage === 'running' ──
++function handleVisibility() {
++  if (stage.value !== 'running') return
++  if (document.hidden) {
++    logCheatEvent('visibility')
++    toast.show('⚠ Se detectó un cambio de pestaña. Quedó registrado.')
++  }
++}
++function handleBlur() {
++  if (stage.value !== 'running') return
++  logCheatEvent('blur')
++}
++function handleCopyPaste(e) {
++  if (stage.value !== 'running') return
++  e.preventDefault()
++  logCheatEvent(e.type) // 'copy' | 'paste' | 'cut'
++}
++function handleContextMenu(e) {
++  if (stage.value !== 'running') return
++  e.preventDefault()
++}
++function handleKeydown(e) {
++  if (stage.value !== 'running') return
++  const key = e.key?.toLowerCase()
++  const blocked =
++    key === 'f12' ||
++    (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(key)) ||
++    (e.metaKey && e.altKey && ['i', 'j', 'c'].includes(key)) ||
++    (e.ctrlKey && key === 'u')
++  if (blocked) {
++    e.preventDefault()
++    logCheatEvent('devtools_attempt')
++  }
++}
++function handleFullscreenChange() {
++  if (stage.value !== 'running') return
++  if (!document.fullscreenElement) {
++    logCheatEvent('fullscreen_exit')
++  }
++}
++
++function attachAntiCheatListeners() {
++  document.addEventListener('visibilitychange', handleVisibility)
++  window.addEventListener('blur', handleBlur)
++  document.addEventListener('copy', handleCopyPaste)
++  document.addEventListener('paste', handleCopyPaste)
++  document.addEventListener('cut', handleCopyPaste)
++  document.addEventListener('contextmenu', handleContextMenu)
++  document.addEventListener('keydown', handleKeydown)
++  document.addEventListener('fullscreenchange', handleFullscreenChange)
++}
++function detachAntiCheatListeners() {
++  document.removeEventListener('visibilitychange', handleVisibility)
++  window.removeEventListener('blur', handleBlur)
++  document.removeEventListener('copy', handleCopyPaste)
++  document.removeEventListener('paste', handleCopyPaste)
++  document.removeEventListener('cut', handleCopyPaste)
++  document.removeEventListener('contextmenu', handleContextMenu)
++  document.removeEventListener('keydown', handleKeydown)
++  document.removeEventListener('fullscreenchange', handleFullscreenChange)
++}
++
++function startTimer() {
++  timerHandle = setInterval(() => {
++    secondsLeft.value -= 1
++    if (secondsLeft.value <= 0) {
++      clearInterval(timerHandle)
++      finishTest(true)
++    }
++  }, 1000)
++}
++function stopTimer() {
++  if (timerHandle) clearInterval(timerHandle)
++  timerHandle = null
++}
++
++async function startTest() {
++  errorMsg.value = ''
++  try {
++    questions.value = await fetchLevelTestQuestions()
++    if (!questions.value.length) {
++      errorMsg.value = 'Todavía no hay preguntas cargadas para el test de nivel.'
++      return
++    }
++    // Intento de pantalla completa (best-effort, no bloqueante si el
++    // navegador/dispositivo no lo permite).
++    try {
++      await document.documentElement.requestFullscreen?.()
++    } catch {
++      // seguimos igual sin fullscreen
++    }
++    startedAt.value = new Date().toISOString()
++    currentIndex.value = 0
++    answers.value = {}
++    cheatEvents.value = []
++    secondsLeft.value = TEST_SECONDS
++    stage.value = 'running'
++    attachAntiCheatListeners()
++    startTimer()
++  } catch (err) {
++    console.error(err)
++    errorMsg.value = err.message || 'No se pudo iniciar el test.'
++  }
++}
++
++function selectOption(index) {
++  if (!currentQuestion.value) return
++  answers.value[currentQuestion.value.id] = index
++}
++
++function goNext() {
++  if (selectedForCurrent.value === undefined) {
++    toast.show('Elegí una opción para continuar.')
++    return
++  }
++  if (isLastQuestion.value) {
++    finishTest(false)
++  } else {
++    currentIndex.value += 1
++  }
++}
++
++async function finishTest(auto) {
++  stopTimer()
++  detachAntiCheatListeners()
++  if (document.fullscreenElement) {
++    try {
++      await document.exitFullscreen()
++    } catch {
++      // no-op
++    }
++  }
++  stage.value = 'submitting'
++  try {
++    const payloadAnswers = questions.value
++      .filter((q) => answers.value[q.id] !== undefined)
++      .map((q) => ({ question_id: q.id, selected_index: answers.value[q.id] }))
++
++    result.value = await submitLevelTest({
++      answers: payloadAnswers,
++      cheatEvents: cheatEvents.value,
++      startedAt: startedAt.value,
++    })
++    stage.value = 'done'
++    if (auto) toast.show('⏱ Se acabó el tiempo, enviamos tus respuestas.')
++  } catch (err) {
++    console.error(err)
++    errorMsg.value = err.message || 'No se pudo enviar el test.'
++    stage.value = 'error'
++  }
++}
++
++onBeforeUnmount(() => {
++  stopTimer()
++  detachAntiCheatListeners()
++})
++</script>
++
++<template>
++  <div class="auth-page" style="max-width: 640px">
++    <!-- INTRO -->
++    <div v-if="stage === 'intro'" style="text-align: center">
++      <span style="font-size: 2rem; color: var(--gold)">👑</span>
++      <h2 style="font-family: var(--font-serif); color: var(--navy)">Test de Nivel</h2>
++      <p style="color: var(--text-mid); margin: 0.75rem 0 1.5rem">
++        {{ questions.length ? questions.length : '12' }} preguntas de gramática y vocabulario, 20 minutos.
++        Una vez que empieces, no vas a poder salir de pantalla completa ni cambiar de pestaña sin que quede
++        registrado.
++      </p>
++      <p v-if="errorMsg" class="form-error">{{ errorMsg }}</p>
++      <button class="btn btn--primary" style="width: 100%" @click="startTest">Empezar test</button>
++    </div>
++
++    <!-- RUNNING -->
++    <div v-else-if="stage === 'running' && currentQuestion">
++      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem">
++        <span style="font-size: 0.8rem; color: var(--text-muted)">
++          Pregunta {{ currentIndex + 1 }} / {{ questions.length }} · Nivel {{ currentQuestion.level }}
++        </span>
++        <span style="font-weight: 700; color: var(--navy)">⏱ {{ timeLabel }}</span>
++      </div>
++
++      <div style="height: 6px; background: var(--ivory-dark); border-radius: 999px; overflow: hidden; margin-bottom: 1.5rem">
++        <div
++          :style="{ width: progressPct + '%', height: '100%', background: 'var(--gold)', transition: 'width .25s' }"
++        ></div>
++      </div>
++
++      <h3 style="font-family: var(--font-serif); color: var(--navy); margin-bottom: 1.25rem">
++        {{ currentQuestion.question }}
++      </h3>
++
++      <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.5rem">
++        <button
++          v-for="(opt, i) in currentQuestion.options"
++          :key="i"
++          type="button"
++          class="btn"
++          :class="selectedForCurrent === i ? 'btn--primary' : 'btn--plan'"
++          style="text-align: left; width: 100%"
++          @click="selectOption(i)"
++        >
++          {{ opt }}
++        </button>
++      </div>
++
++      <button class="btn btn--primary" style="width: 100%" @click="goNext">
++        {{ isLastQuestion ? 'Finalizar test' : 'Siguiente' }}
++      </button>
++    </div>
++
++    <!-- SUBMITTING -->
++    <div v-else-if="stage === 'submitting'" style="text-align: center; padding: 2rem 0">
++      <p style="color: var(--text-mid)">Corrigiendo tu test…</p>
++    </div>
++
++    <!-- DONE -->
++    <div v-else-if="stage === 'done' && result" style="text-align: center">
++      <span style="font-size: 2rem; color: var(--gold)">🎓</span>
++      <h2 style="font-family: var(--font-serif); color: var(--navy)">¡Listo!</h2>
++      <p style="color: var(--text-mid); margin: 0.75rem 0 0.25rem">Tu nivel asignado es:</p>
++      <p style="font-size: 2rem; font-weight: 800; color: var(--navy); margin: 0 0 1rem">
++        {{ result.level_assigned }}
++      </p>
++      <p style="color: var(--text-muted); margin-bottom: 1.5rem">
++        {{ result.score }} de {{ result.total_questions }} respuestas correctas.
++      </p>
++      <button class="btn btn--primary" style="width: 100%" @click="router.push({ name: 'dashboard' })">
++        Ir a mi panel
++      </button>
++    </div>
++
++    <!-- ERROR -->
++    <div v-else-if="stage === 'error'" style="text-align: center">
++      <p class="form-error">{{ errorMsg }}</p>
++      <button class="btn btn--primary" style="width: 100%" @click="stage = 'intro'">Volver a intentar</button>
++    </div>
++  </div>
++</template>
+diff --git a/client/src/views/RegisterView.vue b/client/src/views/RegisterView.vue
+index f00c4f5..48bb7e9 100644
+--- a/client/src/views/RegisterView.vue
++++ b/client/src/views/RegisterView.vue
+@@ -1,9 +1,13 @@
+ <script setup>
+-import { ref } from 'vue'
++import { onMounted, ref } from 'vue'
++import { useRoute } from 'vue-router'
+ import { useAuthStore } from '../stores/auth'
+ import { useToastStore } from '../stores/toast'
+ import { traducirError } from '../services/auth'
++import { supabase } from '../lib/supabase'
++import { registerPendingSale } from '../services/sales'
+ 
++const route = useRoute()
+ const auth = useAuthStore()
+ const toast = useToastStore()
+ 
+@@ -15,6 +19,32 @@ const errorMsg = ref('')
+ const infoMsg = ref('')
+ const loading = ref(false)
+ 
++// Plan elegido en la landing (?plan=explorer|scholar|royal), si vino de ahí.
++const planSlug = ref(route.query.plan ? String(route.query.plan) : '')
++const plan = ref(null)
++const loadingPlan = ref(false)
++
++onMounted(async () => {
++  if (!planSlug.value) return
++  loadingPlan.value = true
++  try {
++    const { data, error } = await supabase
++      .from('plans')
++      .select('*')
++      .eq('slug', planSlug.value)
++      .eq('is_active', true)
++      .maybeSingle()
++    if (error) throw error
++    plan.value = data
++  } catch (err) {
++    console.error(err)
++    // Si falla la consulta (ej. RLS no aplicada todavía), no bloqueamos
++    // el registro: seguimos sin mostrar el detalle del plan.
++  } finally {
++    loadingPlan.value = false
++  }
++})
++
+ async function handleRegister() {
+   errorMsg.value = ''
+   infoMsg.value = ''
+@@ -28,7 +58,35 @@ async function handleRegister() {
+   }
+   loading.value = true
+   try {
+-    await auth.register(email.value.trim(), password.value, name.value.trim(), role.value)
++    // Fix de seguridad: si viene de un plan (flujo público de venta),
++    // el rol queda forzado a 'student' pase lo que pase con el <select>.
++    // El selector de rol libre solo debería usarlo un admin desde
++    // /admin/usuarios, no un visitante anónimo en /register.
++    const finalRole = planSlug.value ? 'student' : role.value
++
++    const signUpData = await auth.register(email.value.trim(), password.value, name.value.trim(), finalRole)
++
++    // Si venía de un plan, dejamos registrada la venta como "pendiente".
++    // El id de usuario viene en signUpData.user aunque falte confirmar
++    // el email (Supabase lo crea igual).
++    const newUserId = signUpData?.user?.id
++    if (planSlug.value && newUserId) {
++      try {
++        await registerPendingSale({
++          planId: planSlug.value,
++          planName: plan.value?.name || planSlug.value,
++          amount: plan.value?.price ?? 0,
++          studentName: name.value.trim(),
++          studentEmail: email.value.trim(),
++          studentUserId: newUserId,
++        })
++      } catch (saleErr) {
++        // No abortamos el registro por esto: la cuenta ya se creó.
++        console.error('No se pudo registrar la venta pendiente:', saleErr)
++        toast.show('⚠ Cuenta creada, pero no se pudo registrar la venta pendiente. Avisale al admin.')
++      }
++    }
++
+     infoMsg.value = '✓ Cuenta creada. Revisá tu email para confirmarla (o ingresá si la confirmación está desactivada).'
+     toast.show('✓ Usuario creado: ' + name.value)
+     name.value = ''
+@@ -49,6 +107,23 @@ async function handleRegister() {
+       <h2 style="font-family: var(--font-serif); color: var(--navy)">Crear cuenta</h2>
+     </div>
+ 
++    <div
++      v-if="planSlug"
++      class="form-field"
++      style="background: var(--ivory-dark); border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 1.25rem"
++    >
++      <p v-if="loadingPlan" style="opacity: 0.6; margin: 0">Cargando plan…</p>
++      <template v-else-if="plan">
++        <p style="margin: 0; font-size: 0.8rem; opacity: 0.7">Plan elegido</p>
++        <p style="margin: 0.15rem 0 0; font-weight: 700; color: var(--navy)">{{ plan.name }} · ${{ plan.price }}/mes</p>
++      </template>
++      <template v-else>
++        <p style="margin: 0; font-size: 0.85rem; opacity: 0.75">
++          Plan seleccionado: <strong>{{ planSlug }}</strong>
++        </p>
++      </template>
++    </div>
++
+     <form @submit.prevent="handleRegister">
+       <div class="form-field">
+         <label for="regName">Nombre completo</label>
+@@ -62,7 +137,9 @@ async function handleRegister() {
+         <label for="regPassword">Contraseña</label>
+         <input id="regPassword" v-model="password" type="password" autocomplete="new-password" />
+       </div>
+-      <div class="form-field">
++      <!-- El selector de rol solo se muestra cuando NO viene de un plan
++           (alta pública). Con plan, el rol queda forzado a "student". -->
++      <div v-if="!planSlug" class="form-field">
+         <label for="regRole">Rol</label>
+         <select id="regRole" v-model="role">
+           <option value="student">Alumno</option>
+diff --git a/server.js b/server.js
+index e86ed54..03b5461 100644
+--- a/server.js
++++ b/server.js
+@@ -57,6 +57,91 @@ async function hasCompletedPrevious(userId, lessonId) {
+   return true;
+ }
+ 
++// ── Test de nivel ────────────────────────────────────────────────
++// Preguntas SIN correct_index: ese campo nunca sale del servidor.
++app.get('/api/level-test/questions', requireAuth, async (req, res) => {
++  const { data, error } = await supabaseAdmin
++    .from('level_test_questions')
++    .select('id, level, skill, question, options, audio_url')
++    .eq('is_active', true);
++  if (error) return res.status(500).json({ error: error.message });
++  res.json({ questions: data });
++});
++
++const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
++
++// Sube de nivel mientras el alumno apruebe (>=60%) cada nivel en orden;
++// corta apenas falla uno (progresión CEFR clásica).
++function assignLevel(levelScores) {
++  let assigned = 'A1';
++  for (const level of CEFR_ORDER) {
++    const s = levelScores[level];
++    if (!s || s.total === 0) continue;
++    const ratio = s.correct / s.total;
++    if (ratio >= 0.6) {
++      assigned = level;
++    } else {
++      break;
++    }
++  }
++  return assigned;
++}
++
++app.post('/api/level-test/submit', requireAuth, async (req, res) => {
++  const { answers, cheatEvents, startedAt } = req.body || {};
++  if (!Array.isArray(answers) || answers.length === 0) {
++    return res.status(400).json({ error: 'Faltan respuestas.' });
++  }
++
++  const questionIds = answers.map((a) => a.question_id).filter(Boolean);
++  const { data: questions, error: qError } = await supabaseAdmin
++    .from('level_test_questions')
++    .select('id, level, correct_index')
++    .in('id', questionIds);
++  if (qError) return res.status(500).json({ error: qError.message });
++
++  const qMap = Object.fromEntries(questions.map((q) => [q.id, q]));
++  const levelScores = {};
++  let score = 0;
++
++  const gradedAnswers = answers.map((a) => {
++    const q = qMap[a.question_id];
++    if (!q) return { question_id: a.question_id, selected_index: a.selected_index, correct: false };
++    const correct = q.correct_index === a.selected_index;
++    levelScores[q.level] = levelScores[q.level] || { correct: 0, total: 0 };
++    levelScores[q.level].total += 1;
++    if (correct) {
++      levelScores[q.level].correct += 1;
++      score += 1;
++    }
++    return { question_id: a.question_id, selected_index: a.selected_index, correct };
++  });
++
++  const levelAssigned = assignLevel(levelScores);
++  const flaggedCheat = Array.isArray(cheatEvents) && cheatEvents.length > 0;
++
++  const { data: inserted, error: insertError } = await supabaseAdmin
++    .from('level_test_results')
++    .insert([
++      {
++        student_id: req.user.id,
++        level_assigned: levelAssigned,
++        score,
++        total_questions: answers.length,
++        answers: gradedAnswers,
++        flagged_cheat: flaggedCheat,
++        cheat_events: cheatEvents || [],
++        started_at: startedAt || new Date().toISOString(),
++        completed_at: new Date().toISOString(),
++      },
++    ])
++    .select()
++    .single();
++  if (insertError) return res.status(500).json({ error: insertError.message });
++
++  res.json({ result: inserted });
++});
++
+ // ── Fallback: cualquier ruta que no sea /api/* devuelve index.html ──
+ // (necesario para que funcione el router de Vue con rutas como /dashboard)
+ app.get(/^(?!\/api).*/, (req, res) => {
+diff --git a/supabase/schema_planes_test_nivel.sql b/supabase/schema_planes_test_nivel.sql
+new file mode 100644
+index 0000000..5f3a6e4
+--- /dev/null
++++ b/supabase/schema_planes_test_nivel.sql
+@@ -0,0 +1,143 @@
++-- =============================================================
++-- QEA — Planes comerciales + Test de Nivel (banco de preguntas)
++-- Todo con IF NOT EXISTS / OR REPLACE: seguro correrlo sobre la
++-- base actual, no toca ninguna tabla ni policy existente salvo
++-- por las columnas nuevas que se agregan a `sales` (ADD COLUMN
++-- IF NOT EXISTS, no rompe filas existentes).
++-- =============================================================
++
++-- 1) PLANES ----------------------------------------------------
++create table if not exists public.plans (
++  id uuid primary key default gen_random_uuid(),
++  slug text unique not null,          -- 'explorer' | 'scholar' | 'royal'
++  name text not null,
++  price numeric(10,2) not null,
++  features jsonb not null default '[]'::jsonb,
++  is_featured boolean not null default false,
++  sort_order int not null default 0,
++  is_active boolean not null default true,
++  created_at timestamptz not null default now()
++);
++
++alter table public.plans enable row level security;
++
++drop policy if exists "plans_select_public" on public.plans;
++create policy "plans_select_public" on public.plans
++  for select using (is_active = true);
++
++drop policy if exists "plans_admin_all" on public.plans;
++create policy "plans_admin_all" on public.plans
++  for all using (
++    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
++  ) with check (
++    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
++  );
++
++insert into public.plans (slug, name, price, features, is_featured, sort_order)
++values
++  ('explorer', 'Explorer', 29,
++   '["Acceso a niveles A1–B1","Biblioteca de audio RP","2 sesiones de tutoría/mes","Royal Badges básicos"]'::jsonb,
++   false, 1),
++  ('scholar', 'Scholar', 59,
++   '["Acceso completo A1–C2","Biblioteca BBC + Literatura","8 sesiones de tutoría/mes","Todos los Royal Badges","Reconocimiento de voz RP","Foro de comunidad"]'::jsonb,
++   true, 2),
++  ('royal', 'Royal', 99,
++   '["Todo lo de Scholar","Tutor dedicado personal","Sesiones ilimitadas 1-a-1","Certificado con sello real","Prioridad en grupos small"]'::jsonb,
++   false, 3)
++on conflict (slug) do nothing;
++
++-- 2) SALES: vincular venta <-> usuario, sin tocar lo que ya existe ----
++-- `plan_id` ya existe en sales como texto libre (dead code en sales.js,
++-- nunca se usó) -> lo reusamos como slug del plan, sin agregar columna.
++-- Solo sumamos student_user_id para poder resolver "¿este alumno logueado
++-- tiene una venta pendiente?" sin depender de matchear por email.
++alter table public.sales add column if not exists student_user_id uuid references auth.users(id) on delete set null;
++
++create index if not exists idx_sales_student_user_id on public.sales(student_user_id);
++create index if not exists idx_sales_status on public.sales(status);
++
++-- El alumno tiene que poder crear su propia venta pendiente al registrarse,
++-- y consultar el estado de la suya (antes solo el admin tenía acceso).
++drop policy if exists "sales_student_insert_own_pending" on public.sales;
++create policy "sales_student_insert_own_pending" on public.sales
++  for insert to authenticated
++  with check (student_user_id = auth.uid() and status = 'pendiente');
++
++drop policy if exists "sales_student_select_own" on public.sales;
++create policy "sales_student_select_own" on public.sales
++  for select to authenticated
++  using (student_user_id = auth.uid());
++
++-- 3) BANCO DE PREGUNTAS (Test de Nivel) -------------------------------
++-- OJO: correct_index NUNCA se lee desde el cliente (ni con RLS abierto).
++-- Solo lo toca el service role desde server.js (grading server-side).
++-- Por eso no hay policy de SELECT para authenticated acá: las preguntas
++-- se sirven vía /api/level-test/questions, que hace el strip del campo.
++create table if not exists public.level_test_questions (
++  id uuid primary key default gen_random_uuid(),
++  level text not null check (level in ('A1','A2','B1','B2','C1','C2')),
++  skill text not null default 'grammar' check (skill in ('grammar','vocabulary','reading','listening')),
++  question text not null,
++  options jsonb not null,          -- ["opción a","opción b","opción c","opción d"]
++  correct_index int not null check (correct_index between 0 and 3),
++  audio_url text,
++  is_active boolean not null default true,
++  created_at timestamptz not null default now()
++);
++
++alter table public.level_test_questions enable row level security;
++
++-- Sin policy de select para authenticated a propósito (ver nota arriba).
++drop policy if exists "level_test_questions_admin_all" on public.level_test_questions;
++create policy "level_test_questions_admin_all" on public.level_test_questions
++  for all using (
++    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
++  ) with check (
++    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
++  );
++
++-- Seed: 2 preguntas por nivel (reemplazá/ampliá desde /panel o /comercial
++-- cuando armes un CRUD de preguntas; con esto ya el test funciona end-to-end).
++insert into public.level_test_questions (level, skill, question, options, correct_index) values
++  ('A1','grammar','She ___ a teacher.', '["are","is","am","be"]', 1),
++  ('A1','vocabulary','Choose the correct word: "I drink ___ every morning."', '["coffee","car","chair","cloud"]', 0),
++  ('A2','grammar','They ___ to the cinema yesterday.', '["go","goes","went","going"]', 2),
++  ('A2','vocabulary','Opposite of "expensive":', '["cheap","big","fast","old"]', 0),
++  ('B1','grammar','If it rains, we ___ stay home.', '["will","would","are","did"]', 0),
++  ('B1','vocabulary','"Reliable" is closest in meaning to:', '["trustworthy","funny","angry","tired"]', 0),
++  ('B2','grammar','By the time she arrived, we ___ already left.', '["have","had","has","having"]', 1),
++  ('B2','vocabulary','"To postpone" means:', '["to delay","to enjoy","to finish","to start"]', 0),
++  ('C1','grammar','Not only ___ she late, but she also forgot the documents.', '["was","she was","did she was","she did"]', 0),
++  ('C1','vocabulary','"Ambiguous" means:', '["unclear","obvious","loud","cheap"]', 0),
++  ('C2','grammar','Had I known, I ___ differently.', '["would act","would have acted","will act","acted"]', 1),
++  ('C2','vocabulary','"Ephemeral" is closest to:', '["short-lived","eternal","heavy","bright"]', 0)
++on conflict do nothing;
++
++-- 4) RESULTADOS DEL TEST DE NIVEL --------------------------------------
++create table if not exists public.level_test_results (
++  id uuid primary key default gen_random_uuid(),
++  student_id uuid not null references auth.users(id) on delete cascade,
++  level_assigned text check (level_assigned in ('A1','A2','B1','B2','C1','C2')),
++  score int not null default 0,
++  total_questions int not null default 0,
++  answers jsonb not null default '[]'::jsonb,      -- [{question_id, selected_index, correct}]
++  flagged_cheat boolean not null default false,
++  cheat_events jsonb not null default '[]'::jsonb, -- [{type:'blur'|'visibility'|'copy'|'devtools', at: ts}]
++  started_at timestamptz not null default now(),
++  completed_at timestamptz,
++  created_at timestamptz not null default now()
++);
++
++alter table public.level_test_results enable row level security;
++
++-- Solo el service role inserta resultados (vía /api/level-test/submit,
++-- que calcula el score server-side). No hay policy de insert para
++-- authenticated a propósito: así un alumno no puede insertarse un
++-- resultado con score inventado directo contra Supabase.
++drop policy if exists "level_test_results_student_select_own" on public.level_test_results;
++create policy "level_test_results_student_select_own" on public.level_test_results
++  for select to authenticated
++  using (
++    student_id = auth.uid()
++    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','teacher'))
++  );
