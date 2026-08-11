@@ -66,7 +66,7 @@ export const useAuthStore = defineStore('auth', {
     async register(email, password, displayName, role = 'student') {
       this.loading = true
       try {
-        await signUpUser(email, password, displayName, role)
+        return await signUpUser(email, password, displayName, role)
       } finally {
         this.loading = false
       }

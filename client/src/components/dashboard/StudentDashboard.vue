@@ -2,14 +2,14 @@
 import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchRealStats } from '../../services/stats'
+import { fetchMySaleStatus } from '../../services/sales'
 
 const auth = useAuthStore()
 const stats = ref(null)
 const loadingStats = ref(false)
+const pendingSale = ref(null)
 
 onMounted(async () => {
-  // El panel de stats reales es solo para admin (RLS de `sales`); para
-  // el resto de los roles no lo mostramos (igual que en app.js loadRealStats).
   if (auth.isAdmin) {
     loadingStats.value = true
     try {
@@ -17,6 +17,13 @@ onMounted(async () => {
     } finally {
       loadingStats.value = false
     }
+  }
+
+  try {
+    const sale = await fetchMySaleStatus()
+    if (sale && sale.status === 'pendiente') pendingSale.value = sale
+  } catch (err) {
+    console.error(err)
   }
 })
 
@@ -30,12 +37,25 @@ const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Bue
     <p class="dash__subtitle">Este es tu resumen de alumno.</p>
   </div>
 
+  <div
+    v-if="pendingSale"
+    class="dash__panel"
+    style="margin-top: 1.5rem; border-left: 4px solid var(--gold); background: var(--ivory-dark)"
+  >
+    <p style="margin: 0; font-weight: 700; color: var(--navy)">💳 Pago pendiente</p>
+    <p style="margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--text-mid)">
+      Tu plan <strong>{{ pendingSale.plan_name }}</strong> (${{ pendingSale.amount }}) está registrado pero todavía
+      no se confirmó el pago. Escribinos para coordinarlo.
+    </p>
+  </div>
+
   <div class="dash__row" style="margin-top: 1.5rem">
     <div class="dash__col" style="flex: 1">
       <div class="dash__panel">
         <h3>Accesos rápidos</h3>
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem">
           <RouterLink to="/materiales" class="btn btn--primary btn--sm">📂 Ver materiales</RouterLink>
+          <RouterLink to="/test-de-nivel" class="btn btn--plan btn--sm">📝 Rendir test de nivel</RouterLink>
         </div>
       </div>
     </div>

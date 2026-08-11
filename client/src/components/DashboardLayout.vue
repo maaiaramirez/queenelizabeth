@@ -8,6 +8,7 @@ const auth = useAuthStore()
 const links = [
   { to: '/dashboard', icon: '⊞', label: 'Resumen', roles: null },
   { to: '/materiales', icon: '📂', label: 'Materiales', roles: null },
+  { to: '/test-de-nivel', icon: '📝', label: 'Test de Nivel', roles: null },
   { to: '/biblioteca', icon: '🗂️', label: 'Biblioteca de Materiales', roles: ['teacher', 'admin'] },
   { to: '/panel', icon: '🛠️', label: 'Panel Docente', roles: ['teacher', 'admin'] },
   { to: '/comercial', icon: '💼', label: 'Gestión Comercial', roles: ['admin'] },
