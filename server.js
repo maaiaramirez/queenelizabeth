@@ -15,6 +15,16 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Diagnóstico: confirmamos qué rol tiene realmente la key configurada,
+// sin exponer la key en sí — solo el campo "role" que trae adentro.
+try {
+  const keyPayload = process.env.SUPABASE_SERVICE_ROLE_KEY.split('.')[1];
+  const decoded = JSON.parse(Buffer.from(keyPayload, 'base64').toString('utf8'));
+  console.log('[startup] SUPABASE_SERVICE_ROLE_KEY tiene role =', decoded.role, '| ref =', decoded.ref);
+} catch (e) {
+  console.log('[startup] No se pudo decodificar SUPABASE_SERVICE_ROLE_KEY (¿no es un JWT? ¿está vacía?):', e.message);
+}
+
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace('Bearer ', '');
