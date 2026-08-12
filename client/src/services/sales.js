@@ -29,6 +29,11 @@ export async function updateSaleStatus(saleId, status) {
   if (error) throw error
 }
 
+export async function updateSaleDetails(saleId, { planName, amount }) {
+  const { error } = await supabase.from('sales').update({ plan_name: planName, amount }).eq('id', saleId)
+  if (error) throw error
+}
+
 export async function registerPendingSale({ planId, planName, amount, studentName, studentEmail, studentUserId }) {
   const { data, error } = await supabase
     .from('sales')

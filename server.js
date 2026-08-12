@@ -15,14 +15,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-try {
-  const keyPayload = process.env.SUPABASE_SERVICE_ROLE_KEY.split('.')[1];
-  const decoded = JSON.parse(Buffer.from(keyPayload, 'base64').toString('utf8'));
-  console.log('[startup] SUPABASE_SERVICE_ROLE_KEY tiene role =', decoded.role, '| ref =', decoded.ref);
-} catch (e) {
-  console.log('[startup] No se pudo decodificar SUPABASE_SERVICE_ROLE_KEY (¿no es un JWT? ¿está vacía?):', e.message);
-}
-
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace('Bearer ', '');
@@ -30,7 +22,6 @@ async function requireAuth(req, res, next) {
 
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) {
-    console.error('[requireAuth] getUser falló:', error?.message || error, '| SUPABASE_URL=', process.env.SUPABASE_URL);
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 
@@ -40,11 +31,6 @@ async function requireAuth(req, res, next) {
     .eq('id', data.user.id)
     .single();
   if (profileError || !profile) {
-    console.error(
-      '[requireAuth] profile lookup falló para user.id =', data.user.id,
-      '| error:', profileError?.message || profileError,
-      '| code:', profileError?.code,
-    );
     return res.status(401).json({ error: 'Perfil no encontrado' });
   }
 
@@ -57,12 +43,6 @@ const authorize = (role) => (req, res, next) => {
   next();
 };
 
-// Exige que el alumno tenga el pago confirmado antes de dejarlo tocar el
-// Test de Nivel. Acepta CUALQUIERA de los dos lugares donde se puede marcar
-// "pagado": el estado manual por alumno en profiles.payment_status (panel
-// "Estado de pago por alumno" en Gestión Comercial) o una venta puntual en
-// `sales` con status='pagado' (flujo de compra de un plan desde la landing).
-// Si cualquiera de los dos dice "pagado", lo dejamos pasar.
 async function requirePaidPlan(req, res, next) {
   if (req.user.paymentStatus === 'pagado') return next();
 

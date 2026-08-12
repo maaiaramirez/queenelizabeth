@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import DashboardLayout from '../components/DashboardLayout.vue'
 import BarChart from '../components/BarChart.vue'
 import { useToastStore } from '../stores/toast'
-import { fetchAllSales, updateSaleStatus, fmtMoney } from '../services/sales'
+import { fetchAllSales, updateSaleStatus, updateSaleDetails, fmtMoney } from '../services/sales'
 import { fetchAllStudentsPayment, updatePaymentStatus } from '../services/profiles'
 
 const toast = useToastStore()
@@ -12,6 +12,10 @@ const loading = ref(true)
 const errorMsg = ref('')
 const search = ref('')
 const statusFilter = ref('')
+
+const editingSaleId = ref(null)
+const editPlanName = ref('')
+const editAmount = ref(0)
 
 const students = ref([])
 const loadingStudents = ref(true)
@@ -124,6 +128,32 @@ async function handleStatus(saleId, status) {
   } catch (err) {
     console.error(err)
     toast.show('⚠ No se pudo actualizar el estado de la venta')
+  }
+}
+
+function startEdit(sale) {
+  editingSaleId.value = sale.id
+  editPlanName.value = sale.plan_name || ''
+  editAmount.value = Number(sale.amount) || 0
+}
+
+function cancelEdit() {
+  editingSaleId.value = null
+}
+
+async function saveEdit(saleId) {
+  try {
+    await updateSaleDetails(saleId, { planName: editPlanName.value.trim(), amount: editAmount.value })
+    const sale = sales.value.find((s) => s.id === saleId)
+    if (sale) {
+      sale.plan_name = editPlanName.value.trim()
+      sale.amount = editAmount.value
+    }
+    editingSaleId.value = null
+    toast.show('✓ Venta actualizada')
+  } catch (err) {
+    console.error(err)
+    toast.show('⚠ No se pudo actualizar la venta')
   }
 }
 </script>
@@ -242,11 +272,12 @@ async function handleStatus(saleId, status) {
               <th>Monto</th>
               <th>Fecha</th>
               <th>Estado</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!filteredRows.length">
-              <td colspan="5">No hay ventas que coincidan con el filtro.</td>
+              <td colspan="6">No hay ventas que coincidan con el filtro.</td>
             </tr>
             <tr v-for="s in filteredRows" :key="s.id">
               <td>
@@ -254,8 +285,26 @@ async function handleStatus(saleId, status) {
                 ><br />
                 <span style="font-size: 0.75rem; opacity: 0.6">{{ s.student_email || '' }}</span>
               </td>
-              <td>{{ s.plan_name || '—' }}</td>
-              <td class="sales__amount">{{ fmtMoney(Number(s.amount)) }}</td>
+              <td>
+                <input
+                  v-if="editingSaleId === s.id"
+                  v-model="editPlanName"
+                  type="text"
+                  style="width: 120px"
+                />
+                <template v-else>{{ s.plan_name || '—' }}</template>
+              </td>
+              <td class="sales__amount">
+                <input
+                  v-if="editingSaleId === s.id"
+                  v-model.number="editAmount"
+                  type="number"
+                  min="0"
+                  step="1"
+                  style="width: 90px"
+                />
+                <template v-else>{{ fmtMoney(Number(s.amount)) }}</template>
+              </td>
               <td>{{ new Date(s.created_at).toLocaleDateString('es-AR') }}</td>
               <td>
                 <span class="sale-status" :class="`sale-status--${s.status}`">{{ s.status }}</span>
@@ -269,6 +318,15 @@ async function handleStatus(saleId, status) {
                   <option value="pagado">Pagado</option>
                   <option value="cancelado">Cancelado</option>
                 </select>
+              </td>
+              <td>
+                <template v-if="editingSaleId === s.id">
+                  <button class="btn btn--primary btn--sm" style="margin-bottom: 0.3rem" @click="saveEdit(s.id)">
+                    Guardar
+                  </button>
+                  <button class="btn btn--sm" @click="cancelEdit">Cancelar</button>
+                </template>
+                <button v-else class="btn btn--sm" @click="startEdit(s)">✏️ Editar</button>
               </td>
             </tr>
           </tbody>
