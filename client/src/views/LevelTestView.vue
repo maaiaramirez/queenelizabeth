@@ -18,6 +18,7 @@ const startedAt = ref(null)
 
 const result = ref(null)
 const alreadyDone = ref(false)
+const alreadyDone = ref(false)
 
 const TEST_SECONDS = 20 * 60
 const secondsLeft = ref(TEST_SECONDS)
