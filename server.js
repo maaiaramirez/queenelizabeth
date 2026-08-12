@@ -21,7 +21,10 @@ async function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Falta token de autenticación' });
 
   const { data, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !data.user) return res.status(401).json({ error: 'Token inválido o expirado' });
+  if (error || !data.user) {
+    console.error('[requireAuth] getUser falló:', error?.message || error, '| SUPABASE_URL=', process.env.SUPABASE_URL);
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
