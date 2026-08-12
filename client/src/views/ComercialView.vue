@@ -4,6 +4,7 @@ import DashboardLayout from '../components/DashboardLayout.vue'
 import BarChart from '../components/BarChart.vue'
 import { useToastStore } from '../stores/toast'
 import { fetchAllSales, updateSaleStatus, fmtMoney } from '../services/sales'
+import { fetchAllStudentsPayment, updatePaymentStatus } from '../services/profiles'
 
 const toast = useToastStore()
 const sales = ref([])
@@ -11,6 +12,10 @@ const loading = ref(true)
 const errorMsg = ref('')
 const search = ref('')
 const statusFilter = ref('')
+
+const students = ref([])
+const loadingStudents = ref(true)
+const studentSearch = ref('')
 
 async function load() {
   loading.value = true
@@ -26,6 +31,39 @@ async function load() {
   }
 }
 onMounted(load)
+
+async function loadStudents() {
+  loadingStudents.value = true
+  try {
+    students.value = await fetchAllStudentsPayment()
+  } catch (err) {
+    console.error(err)
+    toast.show('⚠ No se pudieron cargar los alumnos')
+  } finally {
+    loadingStudents.value = false
+  }
+}
+onMounted(loadStudents)
+
+const filteredStudents = computed(() => {
+  const q = studentSearch.value.trim().toLowerCase()
+  if (!q) return students.value
+  return students.value.filter(
+    (s) => (s.display_name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q),
+  )
+})
+
+async function handlePaymentStatus(userId, status) {
+  try {
+    await updatePaymentStatus(userId, status)
+    const s = students.value.find((x) => x.id === userId)
+    if (s) s.payment_status = status
+    toast.show(`✓ Estado actualizado a "${status}"`)
+  } catch (err) {
+    console.error(err)
+    toast.show('⚠ No se pudo actualizar el estado de pago')
+  }
+}
 
 const pagado = computed(() => sales.value.filter((s) => s.status === 'pagado'))
 const pendiente = computed(() => sales.value.filter((s) => s.status === 'pendiente'))
@@ -141,6 +179,48 @@ async function handleStatus(saleId, status) {
           <h3>Ventas por mes</h3>
           <BarChart :rows="chartByMonth" empty-message="Todavía no hay ventas pagadas." />
         </div>
+      </div>
+
+      <div class="dash__panel" style="margin-top: 1.5rem">
+        <h3>Estado de pago por alumno</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0.25rem 0 1rem">
+          Esto lista a todos los alumnos registrados, tengan o no una venta asociada. Marcá el estado a mano.
+        </p>
+        <input v-model="studentSearch" type="text" placeholder="Buscar alumno por nombre o email…" style="margin-bottom: 1rem" />
+        <p v-if="loadingStudents" style="opacity: 0.6">Cargando alumnos…</p>
+        <p v-else-if="!filteredStudents.length">No hay alumnos que coincidan.</p>
+        <table v-else class="users__table">
+          <thead>
+            <tr>
+              <th>Alumno</th>
+              <th>Registrado</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in filteredStudents" :key="s.id">
+              <td>
+                <strong>{{ s.display_name || '—' }}</strong
+                ><br />
+                <span style="font-size: 0.75rem; opacity: 0.6">{{ s.email }}</span>
+              </td>
+              <td>{{ new Date(s.created_at).toLocaleDateString('es-AR') }}</td>
+              <td>
+                <span class="sale-status" :class="`sale-status--${s.payment_status}`">{{ s.payment_status }}</span>
+                <select
+                  class="status-select"
+                  style="margin-top: 0.3rem; display: block"
+                  :value="s.payment_status"
+                  @change="handlePaymentStatus(s.id, $event.target.value)"
+                >
+                  <option value="pendiente">Pendiente</option>
+                  <option value="pagado">Pagado</option>
+                  <option value="deuda">Deuda</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="dash__panel" style="margin-top: 1.5rem">

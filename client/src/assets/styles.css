@@ -1840,6 +1840,7 @@ blockquote { quotes: none; }
 .sale-status--pagado    { background: rgba(34,197,94,.12); color: #16a34a; }
 .sale-status--pendiente { background: rgba(201,168,76,.15); color: var(--gold); }
 .sale-status--cancelado { background: rgba(200,16,46,.1);  color: var(--red); }
+.sale-status--deuda     { background: rgba(200,16,46,.18); color: var(--red-hover); font-weight: 700; }
 
 .status-select {
   font-size: .78rem; padding: .3rem .5rem;

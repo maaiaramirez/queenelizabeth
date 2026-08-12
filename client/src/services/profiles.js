@@ -38,3 +38,18 @@ export async function fetchProfileCountsByRole() {
   })
   return counts
 }
+
+export async function fetchAllStudentsPayment() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, email, payment_status, created_at')
+    .eq('role', 'student')
+    .order('display_name')
+  if (error) throw error
+  return data || []
+}
+
+export async function updatePaymentStatus(userId, status) {
+  const { error } = await supabase.from('profiles').update({ payment_status: status }).eq('id', userId)
+  if (error) throw error
+}
