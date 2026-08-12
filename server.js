@@ -31,7 +31,14 @@ async function requireAuth(req, res, next) {
     .select('role')
     .eq('id', data.user.id)
     .single();
-  if (profileError || !profile) return res.status(401).json({ error: 'Perfil no encontrado' });
+  if (profileError || !profile) {
+    console.error(
+      '[requireAuth] profile lookup falló para user.id =', data.user.id,
+      '| error:', profileError?.message || profileError,
+      '| code:', profileError?.code,
+    );
+    return res.status(401).json({ error: 'Perfil no encontrado' });
+  }
 
   req.user = { id: data.user.id, role: profile.role };
   next();
