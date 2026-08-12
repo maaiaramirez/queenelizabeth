@@ -15,8 +15,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Diagnóstico: confirmamos qué rol tiene realmente la key configurada,
-// sin exponer la key en sí — solo el campo "role" que trae adentro.
 try {
   const keyPayload = process.env.SUPABASE_SERVICE_ROLE_KEY.split('.')[1];
   const decoded = JSON.parse(Buffer.from(keyPayload, 'base64').toString('utf8'));
@@ -38,7 +36,7 @@ async function requireAuth(req, res, next) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('role')
+    .select('role, payment_status')
     .eq('id', data.user.id)
     .single();
   if (profileError || !profile) {
@@ -50,7 +48,7 @@ async function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Perfil no encontrado' });
   }
 
-  req.user = { id: data.user.id, role: profile.role };
+  req.user = { id: data.user.id, role: profile.role, paymentStatus: profile.payment_status };
   next();
 }
 
@@ -59,9 +57,15 @@ const authorize = (role) => (req, res, next) => {
   next();
 };
 
-// Exige que el alumno tenga una venta con status 'pagado' antes de dejarlo
-// tocar el Test de Nivel (ni ver las preguntas ni enviar respuestas).
+// Exige que el alumno tenga el pago confirmado antes de dejarlo tocar el
+// Test de Nivel. Acepta CUALQUIERA de los dos lugares donde se puede marcar
+// "pagado": el estado manual por alumno en profiles.payment_status (panel
+// "Estado de pago por alumno" en Gestión Comercial) o una venta puntual en
+// `sales` con status='pagado' (flujo de compra de un plan desde la landing).
+// Si cualquiera de los dos dice "pagado", lo dejamos pasar.
 async function requirePaidPlan(req, res, next) {
+  if (req.user.paymentStatus === 'pagado') return next();
+
   const { data: sale, error } = await supabaseAdmin
     .from('sales')
     .select('id, status')
@@ -124,7 +128,6 @@ app.post('/api/level-test/submit', requireAuth, requirePaidPlan, async (req, res
     return res.status(400).json({ error: 'Faltan respuestas.' });
   }
 
-  // Un alumno solo puede rendir el test de nivel una vez.
   const { data: existing, error: existingError } = await supabaseAdmin
     .from('level_test_results')
     .select('id')
