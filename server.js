@@ -104,6 +104,16 @@ app.post('/api/level-test/submit', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Faltan respuestas.' });
   }
 
+  // Un alumno solo puede rendir el test de nivel una vez.
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from('level_test_results')
+    .select('id')
+    .eq('student_id', req.user.id)
+    .limit(1)
+    .maybeSingle();
+  if (existingError) return res.status(500).json({ error: existingError.message });
+  if (existing) return res.status(409).json({ error: 'Ya rendiste el Test de Nivel. No se puede repetir.' });
+
   const questionIds = answers.map((a) => a.question_id).filter(Boolean);
   const { data: questions, error: qError } = await supabaseAdmin
     .from('level_test_questions')
