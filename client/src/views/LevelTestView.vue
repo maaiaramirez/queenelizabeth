@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchLevelTestQuestions, fetchMyLastLevelTestResult, submitLevelTest } from '../services/levelTest'
+import { fetchMySaleStatus } from '../services/sales'
 import { useToastStore } from '../stores/toast'
 
 const router = useRouter()
@@ -17,7 +18,6 @@ const cheatEvents = ref([])
 const startedAt = ref(null)
 
 const result = ref(null)
-const alreadyDone = ref(false)
 const alreadyDone = ref(false)
 
 const TEST_SECONDS = 20 * 60
@@ -206,6 +206,13 @@ onMounted(async () => {
       stage.value = 'done'
       return
     }
+
+    const sale = await fetchMySaleStatus()
+    if (!sale || sale.status !== 'pagado') {
+      stage.value = 'payment-pending'
+      return
+    }
+
     stage.value = 'intro'
   } catch (err) {
     console.error(err)
@@ -218,6 +225,18 @@ onMounted(async () => {
   <div class="auth-page" style="max-width: 640px">
     <div v-if="stage === 'loading'" style="text-align: center; padding: 2rem 0">
       <p style="color: var(--text-mid)">Verificando tu Test de Nivel…</p>
+    </div>
+
+    <div v-if="stage === 'payment-pending'" style="text-align: center">
+      <span style="font-size: 2rem">💳</span>
+      <h2 style="font-family: var(--font-serif); color: var(--navy)">Pago pendiente</h2>
+      <p style="color: var(--text-mid); margin: 0.75rem 0 1.5rem">
+        Para rendir el Test de Nivel primero necesitamos confirmar el pago de tu plan. En cuanto se
+        confirme, vas a poder rendirlo desde acá.
+      </p>
+      <button class="btn btn--plan" style="width: 100%" @click="router.push({ name: 'dashboard' })">
+        Volver a mi panel
+      </button>
     </div>
 
     <div v-if="stage === 'intro'" style="text-align: center">

@@ -59,6 +59,26 @@ const authorize = (role) => (req, res, next) => {
   next();
 };
 
+// Exige que el alumno tenga una venta con status 'pagado' antes de dejarlo
+// tocar el Test de Nivel (ni ver las preguntas ni enviar respuestas).
+async function requirePaidPlan(req, res, next) {
+  const { data: sale, error } = await supabaseAdmin
+    .from('sales')
+    .select('id, status')
+    .eq('student_user_id', req.user.id)
+    .eq('status', 'pagado')
+    .limit(1)
+    .maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!sale) {
+    return res.status(403).json({
+      error: 'Necesitás tener un plan pagado y confirmado para rendir el Test de Nivel.',
+      code: 'PLAN_NOT_PAID',
+    });
+  }
+  next();
+}
+
 app.get('/api/lessons/:id', requireAuth, async (req, res) => {
   const { user } = req;
   const hasCompleted = await hasCompletedPrevious(user.id, req.params.id);
@@ -72,7 +92,7 @@ async function hasCompletedPrevious(userId, lessonId) {
   return true;
 }
 
-app.get('/api/level-test/questions', requireAuth, async (req, res) => {
+app.get('/api/level-test/questions', requireAuth, requirePaidPlan, async (req, res) => {
   const { data, error } = await supabaseAdmin
     .from('level_test_questions')
     .select('id, level, skill, question, options, audio_url')
@@ -98,7 +118,7 @@ function assignLevel(levelScores) {
   return assigned;
 }
 
-app.post('/api/level-test/submit', requireAuth, async (req, res) => {
+app.post('/api/level-test/submit', requireAuth, requirePaidPlan, async (req, res) => {
   const { answers, cheatEvents, startedAt } = req.body || {};
   if (!Array.isArray(answers) || answers.length === 0) {
     return res.status(400).json({ error: 'Faltan respuestas.' });
