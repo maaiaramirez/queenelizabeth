@@ -14,7 +14,6 @@ const toast = useToastStore()
 const name = ref('')
 const email = ref('')
 const password = ref('')
-const role = ref('student')
 const errorMsg = ref('')
 const infoMsg = ref('')
 const loading = ref(false)
@@ -55,9 +54,7 @@ async function handleRegister() {
   }
   loading.value = true
   try {
-    const finalRole = planSlug.value ? 'student' : role.value
-
-    const signUpData = await auth.register(email.value.trim(), password.value, name.value.trim(), finalRole)
+    const signUpData = await auth.register(email.value.trim(), password.value, name.value.trim(), 'student')
 
     const newUserId = signUpData?.user?.id
     if (planSlug.value && newUserId) {
@@ -125,14 +122,6 @@ async function handleRegister() {
       <div class="form-field">
         <label for="regPassword">Contraseña</label>
         <input id="regPassword" v-model="password" type="password" autocomplete="new-password" />
-      </div>
-      <div v-if="!planSlug" class="form-field">
-        <label for="regRole">Rol</label>
-        <select id="regRole" v-model="role">
-          <option value="student">Alumno</option>
-          <option value="teacher">Docente</option>
-          <option value="admin">Admin</option>
-        </select>
       </div>
       <p class="form-error">{{ errorMsg }}</p>
       <p class="form-info">{{ infoMsg }}</p>
