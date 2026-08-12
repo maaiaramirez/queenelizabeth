@@ -49,3 +49,12 @@ export async function fetchMyLastLevelTestResult() {
   if (error) throw error
   return data
 }
+
+export async function fetchAllLevelTestResults() {
+  const { data, error } = await supabase
+    .from('level_test_results')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}

@@ -6,6 +6,7 @@ import PanelCreateLesson from '../components/panel/PanelCreateLesson.vue'
 import PanelMaterials from '../components/panel/PanelMaterials.vue'
 import PanelSales from '../components/panel/PanelSales.vue'
 import PanelEnroll from '../components/panel/PanelEnroll.vue'
+import PanelLevelTestResults from '../components/panel/PanelLevelTestResults.vue'
 
 const lessonPanel = ref(null)
 
@@ -41,6 +42,10 @@ function onCourseCreated() {
 
     <div style="margin-top: 1.5rem">
       <PanelSales />
+    </div>
+
+    <div style="margin-top: 1.5rem">
+      <PanelLevelTestResults />
     </div>
   </DashboardLayout>
 </template>
