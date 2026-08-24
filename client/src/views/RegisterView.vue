@@ -14,6 +14,7 @@ const toast = useToastStore()
 const name = ref('')
 const email = ref('')
 const password = ref('')
+const secretCode = ref('')
 const errorMsg = ref('')
 const infoMsg = ref('')
 const loading = ref(false)
@@ -57,6 +58,24 @@ async function handleRegister() {
     const signUpData = await auth.register(email.value.trim(), password.value, name.value.trim(), 'student')
 
     const newUserId = signUpData?.user?.id
+
+    // Código secreto de docente (opcional) — valida y asigna el rol
+    // del lado del servidor vía RPC. Si es inválido, sigue como alumno.
+    if (secretCode.value.trim() && signUpData?.session) {
+      try {
+        const { data: ok, error: rpcError } = await supabase.rpc('claim_teacher_role', {
+          secret_code: secretCode.value.trim(),
+        })
+        if (rpcError || !ok) {
+          toast.show('⚠ Código secreto inválido. Te registraste como alumno.')
+        } else {
+          toast.show('✓ Cuenta creada con rol de profesor.')
+        }
+      } catch (codeErr) {
+        console.error('Error validando código secreto:', codeErr)
+      }
+    }
+
     if (planSlug.value && newUserId) {
       try {
         await registerPendingSale({
@@ -78,6 +97,7 @@ async function handleRegister() {
     name.value = ''
     email.value = ''
     password.value = ''
+    secretCode.value = ''
   } catch (err) {
     errorMsg.value = traducirError(err.message)
   } finally {
@@ -122,6 +142,10 @@ async function handleRegister() {
       <div class="form-field">
         <label for="regPassword">Contraseña</label>
         <input id="regPassword" v-model="password" type="password" autocomplete="new-password" />
+      </div>
+      <div class="form-field">
+        <label for="regSecretCode">Código Secreto (docentes, opcional)</label>
+        <input id="regSecretCode" v-model="secretCode" type="text" placeholder="PROFE-2026" />
       </div>
       <p class="form-error">{{ errorMsg }}</p>
       <p class="form-info">{{ infoMsg }}</p>
