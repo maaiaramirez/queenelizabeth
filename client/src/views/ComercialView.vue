@@ -5,6 +5,10 @@ import BarChart from '../components/BarChart.vue'
 import { useToastStore } from '../stores/toast'
 import { fetchAllSales, updateSaleStatus, updateSaleDetails, fmtMoney } from '../services/sales'
 import { fetchAllStudentsPayment, updatePaymentStatus } from '../services/profiles'
+import ReceiptModal from '../components/panel/ReceiptModal.vue'
+import EnrollmentStats from '../components/panel/EnrollmentStats.vue'
+
+const receiptSale = ref(null)
 
 const toast = useToastStore()
 const sales = ref([])
@@ -200,6 +204,10 @@ async function saveEdit(saleId) {
         </div>
       </div>
 
+      <div style="margin-top: 1.5rem">
+        <EnrollmentStats :total-students="students.length" />
+      </div>
+
       <div class="dash__row" style="margin-top: 1.5rem; display: flex; gap: 1.5rem; flex-wrap: wrap">
         <div class="dash__panel" style="flex: 1; min-width: 320px">
           <h3>Ventas por plan</h3>
@@ -327,11 +335,14 @@ async function saveEdit(saleId) {
                   <button class="btn btn--sm" @click="cancelEdit">Cancelar</button>
                 </template>
                 <button v-else class="btn btn--sm" @click="startEdit(s)">✏️ Editar</button>
+                <button class="btn btn--sm" style="margin-top: 0.3rem" @click="receiptSale = s">🧾 Recibo</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </template>
+
+    <ReceiptModal v-if="receiptSale" :sale="receiptSale" @close="receiptSale = null" />
   </DashboardLayout>
 </template>

@@ -57,6 +57,12 @@ const routes = [
     component: () => import('../views/AdminUsersView.vue'),
     meta: { requiresAuth: true, roles: ['admin'] },
   },
+  {
+    path: '/baja',
+    name: 'baja',
+    component: () => import('../views/BajaView.vue'),
+    meta: { requiresAuth: true },
+  },
 ]
 
 const router = createRouter({

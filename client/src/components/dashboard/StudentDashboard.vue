@@ -3,11 +3,14 @@ import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchRealStats } from '../../services/stats'
 import { fetchMySaleStatus } from '../../services/sales'
+import { fetchActiveActivities, ACTIVITY_TYPE_ICONS } from '../../services/activities'
 
 const auth = useAuthStore()
 const stats = ref(null)
 const loadingStats = ref(false)
 const pendingSale = ref(null)
+const activities = ref([])
+const loadingActivities = ref(false)
 
 onMounted(async () => {
   if (auth.isAdmin) {
@@ -24,6 +27,17 @@ onMounted(async () => {
     if (sale && sale.status === 'pendiente') pendingSale.value = sale
   } catch (err) {
     console.error(err)
+  }
+
+  if (auth.role === 'student') {
+    loadingActivities.value = true
+    try {
+      activities.value = await fetchActiveActivities()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      loadingActivities.value = false
+    }
   }
 })
 
@@ -58,6 +72,33 @@ const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Bue
           <RouterLink to="/test-de-nivel" class="btn btn--plan btn--sm">📝 Rendir test de nivel</RouterLink>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div v-if="auth.role === 'student'" class="dash__panel" style="margin-top: 1.5rem">
+    <h3>🎯 Actividades extra</h3>
+    <p style="opacity: 0.8; font-size: 0.9rem">Para practicar además de lo que suben tus docentes.</p>
+    <p v-if="loadingActivities" style="opacity: 0.6">Cargando…</p>
+    <p v-else-if="!activities.length" style="opacity: 0.6">Todavía no hay actividades extra cargadas.</p>
+    <div v-else style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem">
+      <a
+        v-for="a in activities"
+        :key="a.id"
+        :href="a.url || '#'"
+        target="_blank"
+        rel="noopener"
+        class="lesson__item"
+        style="text-decoration: none; color: inherit"
+      >
+        <div class="lesson__thumb">{{ ACTIVITY_TYPE_ICONS[a.type] || '🎯' }}</div>
+        <div class="lesson__info" style="flex: 1">
+          <strong>{{ a.title }}</strong>
+          <span>
+            {{ a.level === 'todos' ? 'Todos los niveles' : a.level }}
+            <template v-if="a.description"> · {{ a.description }}</template>
+          </span>
+        </div>
+      </a>
     </div>
   </div>
 
@@ -99,4 +140,8 @@ const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Bue
       {{ stats.topMaterials.map((m) => `${m.title} (${m.views})`).join(' · ') }}
     </p>
   </div>
+
+  <p v-if="auth.role === 'student'" style="margin-top: 2rem; text-align: center; font-size: 0.8rem; opacity: 0.55">
+    <RouterLink to="/baja" style="color: inherit">¿Querés darte de baja?</RouterLink>
+  </p>
 </template>

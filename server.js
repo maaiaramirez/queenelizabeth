@@ -4,6 +4,7 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
+const nodemailer = require('nodemailer');
 
 const app = express();
 app.use(express.json());
@@ -14,6 +15,32 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+function getMailTransport() {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+}
+
+function receiptHtml(sale) {
+  const receiptNo = 'REC-' + String(sale.id).slice(0, 8).toUpperCase();
+  return `
+    <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; border: 1px solid #ddd; padding: 24px;">
+      <h2 style="margin: 0 0 4px">Queen Elizabeth Academy</h2>
+      <p style="color:#666; margin-top:0">Recibo de pago — ${receiptNo}</p>
+      <hr />
+      <p><strong>Alumno:</strong> ${sale.student_name || '—'}</p>
+      <p><strong>Plan:</strong> ${sale.plan_name || '—'}</p>
+      <p><strong>Fecha:</strong> ${new Date(sale.created_at).toLocaleDateString('es-AR')}</p>
+      <p><strong>Estado:</strong> ${sale.status}</p>
+      <p style="font-size: 1.2em"><strong>Monto:</strong> $${Number(sale.amount || 0).toLocaleString('es-AR')}</p>
+      <p style="color:#999; font-size: 0.8em; margin-top: 24px">Comprobante generado digitalmente.</p>
+    </div>`;
+}
 
 async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -164,6 +191,43 @@ app.post('/api/level-test/submit', requireAuth, requirePaidPlan, async (req, res
   if (insertError) return res.status(500).json({ error: insertError.message });
 
   res.json({ result: inserted });
+});
+
+app.post('/api/receipts/send', requireAuth, async (req, res) => {
+  if (!['admin', 'teacher'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Acceso denegado' });
+  }
+  const { saleId } = req.body || {};
+  if (!saleId) return res.status(400).json({ error: 'Falta saleId' });
+
+  const { data: sale, error: saleError } = await supabaseAdmin
+    .from('sales')
+    .select('*')
+    .eq('id', saleId)
+    .single();
+  if (saleError || !sale) return res.status(404).json({ error: 'Venta no encontrada' });
+  if (!sale.student_email) return res.status(400).json({ error: 'Esta venta no tiene email de alumno cargado' });
+
+  const transport = getMailTransport();
+  if (!transport) {
+    return res.status(503).json({
+      error:
+        'El envío de mail no está configurado todavía. Faltan las variables SMTP_HOST, SMTP_USER y SMTP_PASS en el servidor.',
+    });
+  }
+
+  try {
+    await transport.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: sale.student_email,
+      subject: `Tu recibo — Queen Elizabeth Academy (${sale.plan_name || 'Plan'})`,
+      html: receiptHtml(sale),
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error enviando recibo:', err.message);
+    res.status(500).json({ error: 'No se pudo enviar el mail. Revisá las credenciales SMTP.' });
+  }
 });
 
 app.get(/^(?!\/api).*/, (req, res) => {

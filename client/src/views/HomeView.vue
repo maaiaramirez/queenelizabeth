@@ -1,6 +1,8 @@
 <script setup>
+import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
+const showSampleLesson = ref(false)
 </script>
 
 <template>
@@ -25,9 +27,9 @@ const auth = useAuthStore()
           <RouterLink :to="auth.isLoggedIn ? { name: 'dashboard' } : { name: 'register' }" class="btn btn--primary btn--large">
             Explorar el Campus →
           </RouterLink>
-          <RouterLink :to="{ name: 'home', hash: '#metodologia' }" class="btn btn--outline btn--large">
+          <button type="button" class="btn btn--outline btn--large" @click="showSampleLesson = true">
             Ver una Lección de Muestra
-          </RouterLink>
+          </button>
         </div>
         <div class="hero__stats">
           <div class="hero__stat">
@@ -524,5 +526,51 @@ const auth = useAuthStore()
         </div>
       </div>
     </footer>
+
+    <!-- SAMPLE LESSON MODAL -->
+    <div
+      v-if="showSampleLesson"
+      class="auth__overlay"
+      style="display: flex"
+      @click.self="showSampleLesson = false"
+    >
+      <div class="auth__modal" role="dialog" aria-modal="true" aria-labelledby="sampleLessonTitle" style="max-height: 90vh; overflow-y: auto">
+        <button class="auth__close" aria-label="Cerrar" @click="showSampleLesson = false">✕</button>
+        <div class="auth__panel">
+        <div class="auth__header">
+          <span class="auth__crown" aria-hidden="true">♛</span>
+          <h2 class="auth__title" id="sampleLessonTitle">Lección de Muestra</h2>
+          <p class="auth__subtitle">Nivel B1 · Received Pronunciation</p>
+        </div>
+        <div style="text-align: left; margin-top: 1rem">
+          <h3 style="margin-bottom: 0.5rem">Unit 3 — At the airport</h3>
+          <p style="opacity: 0.85; font-size: 0.95rem; line-height: 1.6">
+            <strong>Officer:</strong> Good afternoon. May I see your passport, please?<br />
+            <strong>You:</strong> Of course. Here you are.<br />
+            <strong>Officer:</strong> What's the purpose of your visit — business or leisure?<br />
+            <strong>You:</strong> Leisure. I'm here to visit some friends in London.
+          </p>
+          <div style="margin: 1rem 0; padding: 0.9rem; border-radius: 10px; background: var(--ivory-dark)">
+            <strong style="color: var(--navy)">🎙️ RP en foco:</strong>
+            <span style="font-size: 0.9rem; color: var(--text-mid)">
+              Notá la "r" no rótica en <em>purpose</em> y <em>here</em>, y el uso de <em>lift</em> en vez de
+              <em>elevator</em> más adelante en la lección completa.
+            </span>
+          </div>
+          <p style="font-size: 0.85rem; opacity: 0.7">
+            Esta es una muestra corta. Las lecciones completas incluyen audio nativo, ejercicios y
+            corrección de pronunciación con tu tutor.
+          </p>
+        </div>
+        <RouterLink
+          :to="auth.isLoggedIn ? { name: 'dashboard' } : { name: 'register' }"
+          class="btn btn--primary auth__submit"
+          @click="showSampleLesson = false"
+        >
+          Empezar Gratis
+        </RouterLink>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
