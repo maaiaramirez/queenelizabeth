@@ -1979,3 +1979,65 @@ blockquote { quotes: none; }
 .lib-body dialog input:focus, .lib-body dialog select:focus { outline: none; border-color: var(--gold); background: var(--white); }
 .lib-body dialog .lib-toolbar { margin: 1.5rem 0 0; justify-content: flex-end; }
 
+/* Formularios de panel (subir material, crear curso, actividades, baja, etc.) */
+.form-field { margin-bottom: 1.1rem; }
+.form-field label {
+  display: block; margin-bottom: .4rem;
+  font-size: .82rem; font-weight: 600; color: var(--text-mid);
+  letter-spacing: .01em;
+}
+.form-field input[type="text"],
+.form-field input[type="number"],
+.form-field input[type="email"],
+.form-field input[type="password"],
+.form-field select,
+.form-field textarea {
+  width: 100%; padding: .7rem .9rem;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-family: var(--font-sans); font-size: .92rem; color: var(--text-dark);
+  background: var(--ivory); transition: var(--transition);
+}
+.form-field textarea { resize: vertical; min-height: 80px; }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+  outline: none; border-color: var(--gold); background: var(--white);
+  box-shadow: 0 0 0 3px rgba(201,168,76,.18);
+}
+.form-field input::placeholder, .form-field textarea::placeholder { color: var(--text-muted); }
+
+/* Selector de archivo con drag & drop */
+.dropzone {
+  display: flex; align-items: center; gap: .9rem;
+  padding: 1.1rem 1.2rem;
+  border: 1.5px dashed var(--border); border-radius: var(--radius-md);
+  background: var(--ivory); cursor: pointer; transition: var(--transition);
+}
+.dropzone:hover { border-color: var(--gold); background: var(--gold-pale); }
+.dropzone--dragging { border-color: var(--gold); background: var(--gold-pale); box-shadow: 0 0 0 3px rgba(201,168,76,.18); }
+.dropzone--filled { border-style: solid; border-color: var(--navy-light); background: var(--white); }
+.dropzone__icon {
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; background: var(--navy); color: var(--gold-light);
+}
+.dropzone--filled .dropzone__icon { background: var(--gold-pale); color: var(--navy); }
+.dropzone__body { flex: 1; min-width: 0; }
+.dropzone__title { font-size: .92rem; font-weight: 600; color: var(--navy); }
+.dropzone__hint { font-size: .78rem; color: var(--text-muted); margin-top: .15rem; }
+.dropzone__filename { font-size: .85rem; color: var(--text-mid); margin-top: .15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropzone__clear {
+  flex-shrink: 0; border: none; background: none; cursor: pointer;
+  color: var(--text-muted); font-size: 1rem; padding: .3rem .5rem; border-radius: 50%;
+  transition: var(--transition);
+}
+.dropzone__clear:hover { background: var(--ivory-dark); color: var(--red); }
+.dropzone__input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+
+/* Toggle segmentado (archivo vs enlace) */
+.upload-toggle { display: inline-flex; border: 1.5px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 1.1rem; }
+.upload-toggle button {
+  padding: .55rem 1.1rem; border: none; background: var(--ivory); color: var(--text-mid);
+  font-family: var(--font-sans); font-size: .85rem; font-weight: 600; cursor: pointer; transition: var(--transition);
+}
+.upload-toggle button + button { border-left: 1.5px solid var(--border); }
+.upload-toggle button.active { background: var(--navy); color: var(--gold-light); }
+

@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useToastStore } from '../../stores/toast'
 import { fetchCourses, fetchLessons } from '../../services/courses'
 import { fetchAllMaterials, uploadMaterial, deleteMaterial, TYPE_ICONS } from '../../services/materials'
+import FileDropzone from '../FileDropzone.vue'
 
 const toast = useToastStore()
 
@@ -45,10 +46,6 @@ async function loadMaterials() {
   } finally {
     materialsLoading.value = false
   }
-}
-
-function onFileChange(e) {
-  file.value = e.target.files[0] || null
 }
 
 async function handleUpload() {
@@ -133,7 +130,7 @@ onMounted(() => {
       </div>
       <div v-if="type !== 'link'" class="form-field">
         <label>Archivo</label>
-        <input type="file" @change="onFileChange" />
+        <FileDropzone v-model="file" hint="Hacé clic o arrastrá el PDF/archivo acá" />
       </div>
       <div v-else class="form-field">
         <label>URL externa</label>

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import DashboardLayout from '../components/DashboardLayout.vue'
+import FileDropzone from '../components/FileDropzone.vue'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
 import {
@@ -106,10 +107,6 @@ async function handleDeleteFolder(f) {
   } catch (e) {
     toast.show('Error al borrar: ' + e.message)
   }
-}
-
-function onUploadFileChange(e) {
-  uploadFile.value = e.target.files[0] || null
 }
 
 async function handleUploadFile() {
@@ -271,10 +268,10 @@ onMounted(render)
           <option value="document">Word/PowerPoint</option>
         </select>
       </label>
-      <label
-        >Archivo
-        <input type="file" @change="onUploadFileChange" />
-      </label>
+      <div style="margin-top: 0.9rem">
+        <span style="display: block; font-size: 0.82rem; color: var(--text-mid); font-weight: 600; margin-bottom: 0.4rem">Archivo</span>
+        <FileDropzone v-model="uploadFile" hint="Hacé clic o arrastrá el archivo acá" />
+      </div>
       <label
         >Asociar a lección (opcional, ID)
         <input v-model="uploadLessonId" type="text" placeholder="lesson id (opcional)" />
