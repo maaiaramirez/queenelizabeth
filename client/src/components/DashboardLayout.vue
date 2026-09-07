@@ -1,8 +1,17 @@
 <script setup>
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { rolLabel } from '../services/auth'
 
 const auth = useAuthStore()
+const router = useRouter()
+
+const suspended = auth.role === 'student' && auth.profile?.payment_status === 'cancelado'
+
+async function handleLogout() {
+  await auth.logout()
+  router.push({ name: 'home' })
+}
 
 // data-roles del link original -> a quién se le muestra
 const links = [
@@ -17,7 +26,19 @@ const links = [
 </script>
 
 <template>
-  <div class="dashboard">
+  <div v-if="suspended" class="dashboard" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--navy)">
+    <div class="dash__panel" style="max-width: 420px; text-align: center">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem">🔒</div>
+      <h2 style="color: var(--navy); margin-bottom: 0.5rem">Cuenta suspendida</h2>
+      <p style="opacity: 0.75; margin-bottom: 1.5rem">
+        Tu cuenta está suspendida debido a una baja. Si creés que esto es un error o querés reactivarla,
+        contactá a la academia.
+      </p>
+      <button class="btn btn--primary" @click="handleLogout">Salir</button>
+    </div>
+  </div>
+
+  <div v-else class="dashboard">
     <aside class="sidebar">
       <div class="sidebar__user">
         <div class="sidebar__avatar">{{ auth.initials }}</div>
