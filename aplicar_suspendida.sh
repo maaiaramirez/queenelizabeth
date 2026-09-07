@@ -234,6 +234,40 @@ app.post('/api/receipts/send', requireAuth, async (req, res) => {
   }
 });
 
+async function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Falta token de autenticación' });
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data.user) return res.status(401).json({ error: 'Token inválido o expirado' });
+  req.authUser = data.user;
+  next();
+}
+
+app.post('/api/auth/ensure-profile', verifyToken, async (req, res) => {
+  const { displayName, role } = req.body || {};
+  const user = req.authUser;
+
+  const { data: existing } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (existing) return res.json({ ok: true, alreadyExisted: true });
+
+  const { error } = await supabaseAdmin.from('profiles').insert([
+    {
+      id: user.id,
+      email: user.email,
+      display_name: displayName || user.email?.split('@')[0] || 'Usuario',
+      role: ['student', 'teacher', 'admin'].includes(role) ? role : 'student',
+      payment_status: 'pendiente',
+    },
+  ]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, alreadyExisted: false });
+});
+
 app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
   const { id } = req.params;
@@ -252,74 +286,110 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Academy corriendo en puerto ${PORT}`));
 SERVERJS_EOF
 
-cat > client/src/services/profiles.js << 'PROFILESJS_EOF'
+cat > client/src/services/auth.js << 'AUTHJS_EOF'
 import { supabase } from '../lib/supabase'
 
-export async function fetchAllProfiles() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, email, display_name, role, payment_status, created_at')
-    .order('created_at', { ascending: false })
+/**
+ * Registra un nuevo usuario y crea su perfil con el rol indicado.
+ * role: 'student' | 'teacher' | 'admin'
+ */
+export async function signUpUser(email, password, displayName, role = 'student') {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { display_name: displayName, role } },
+  })
   if (error) throw error
-  return data || []
+
+  // El trigger on_auth_user_created de Supabase debería crear el perfil solo,
+  // pero por las dudas lo garantizamos también acá (idempotente, no duplica).
+  if (data.session?.access_token) {
+    try {
+      await fetch('/api/auth/ensure-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${data.session.access_token}`,
+        },
+        body: JSON.stringify({ displayName, role }),
+      })
+    } catch (e) {
+      console.error('No se pudo asegurar el perfil vía API:', e)
+    }
+  }
+
+  return data
 }
 
-export async function updateUserRole(userId, newRole) {
-  const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
+export async function signInUser(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw error
+  return data
+}
+
+export async function signOutUser() {
+  const { error } = await supabase.auth.signOut()
   if (error) throw error
 }
 
-export async function deleteUserProfile(userId) {
+export async function getCurrentUser() {
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const res = await fetch(`/api/admin/users/${userId}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${session?.access_token || ''}` },
-  })
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(body.error || 'No se pudo borrar la cuenta')
-  return body
+    data: { user },
+  } = await supabase.auth.getUser()
+  return user
 }
 
-export async function fetchAllStudents() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, display_name, email')
-    .eq('role', 'student')
-    .order('display_name')
-  if (error) throw error
-  return data || []
+export async function getCurrentProfile() {
+  const user = await getCurrentUser()
+  if (!user) return null
+  let { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  if (error) {
+    // Perfil faltante (cuenta vieja/rota): lo creamos ahora mismo, server-side.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      try {
+        await fetch('/api/auth/ensure-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ displayName: user.user_metadata?.display_name, role: user.user_metadata?.role }),
+        })
+        ;({ data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single())
+      } catch (e) {
+        console.error('No se pudo autoreparar el perfil:', e)
+      }
+    }
+  }
+  if (error) return null
+  return data
 }
 
-export async function fetchProfileCountsByRole() {
-  const { data, error } = await supabase.from('profiles').select('role')
-  if (error) throw error
-  const counts = { student: 0, teacher: 0, admin: 0 }
-  ;(data || []).forEach((p) => {
-    if (counts[p.role] !== undefined) counts[p.role]++
-  })
-  return counts
+export function onAuthStateChange(callback) {
+  return supabase.auth.onAuthStateChange((event, session) => callback(event, session))
 }
 
-export async function fetchAllStudentsPayment() {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, display_name, email, payment_status, created_at')
-    .eq('role', 'student')
-    .order('display_name')
-  if (error) throw error
-  return data || []
+export async function checkTeacherAccess() {
+  const profile = await getCurrentProfile()
+  return !!profile && (profile.role === 'teacher' || profile.role === 'admin')
 }
 
-export async function updatePaymentStatus(userId, status) {
-  const { error } = await supabase.from('profiles').update({ payment_status: status }).eq('id', userId)
-  if (error) throw error
+export function traducirError(msg) {
+  if (!msg) return 'Ocurrió un error inesperado.'
+  if (msg.includes('Invalid login credentials')) return 'Email o contraseña incorrectos.'
+  if (msg.includes('Email not confirmed')) return 'Confirmá tu email antes de ingresar.'
+  if (msg.includes('User already registered')) return 'Ese email ya tiene una cuenta registrada.'
+  if (msg.includes('Password should be')) return 'La contraseña debe tener al menos 6 caracteres.'
+  return msg
 }
-PROFILESJS_EOF
+
+export function rolLabel(role) {
+  return { admin: 'Admin', teacher: 'Docente', student: 'Alumno' }[role] || role
+}
+AUTHJS_EOF
 
 rm -f "$0"
 git add -A
-git commit -m "fix: borrar usuario ahora elimina tambien el auth.user (antes solo borraba profiles y quedaba huerfano)"
+git commit -m "fix: crear perfil de forma garantizada al registrarse + autoreparar perfiles faltantes al loguearse"
 git push origin main
 echo "Listo. Acordate: Manual Deploy -> Deploy latest commit en Render."
