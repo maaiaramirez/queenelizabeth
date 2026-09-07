@@ -1,195 +1,230 @@
 #!/bin/bash
 set -e
 echo "Corré este script parado en la raíz del repo"
-mkdir -p client/src/components client/src/views
-cat > client/src/components/DashboardLayout.vue << 'DASHLAYOUT_VUE_EOF'
-<script setup>
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { rolLabel } from '../services/auth'
+mkdir -p client/src/services client/src/views
+cat > client/src/services/profiles.js << 'PROFILES_JS_EOF'
+import { supabase } from '../lib/supabase'
 
-const auth = useAuthStore()
-const router = useRouter()
-
-const suspended = auth.role === 'student' && auth.profile?.payment_status === 'cancelado'
-
-async function handleLogout() {
-  await auth.logout()
-  router.push({ name: 'home' })
+export async function fetchAllProfiles() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, display_name, role, payment_status, created_at')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
 }
 
-// data-roles del link original -> a quién se le muestra
-const links = [
-  { to: '/dashboard', icon: '⊞', label: 'Resumen', roles: null },
-  { to: '/materiales', icon: '📂', label: 'Materiales', roles: null },
-  { to: '/test-de-nivel', icon: '📝', label: 'Test de Nivel', roles: null },
-  { to: '/biblioteca', icon: '🗂️', label: 'Biblioteca de Materiales', roles: ['teacher', 'admin'] },
-  { to: '/panel', icon: '🛠️', label: 'Panel Docente', roles: ['teacher', 'admin'] },
-  { to: '/comercial', icon: '💼', label: 'Gestión Comercial', roles: ['admin'] },
-  { to: '/admin/usuarios', icon: '👥', label: 'Usuarios', roles: ['admin'] },
-]
-</script>
+export async function updateUserRole(userId, newRole) {
+  const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId)
+  if (error) throw error
+}
 
-<template>
-  <div v-if="suspended" class="dashboard" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--navy)">
-    <div class="dash__panel" style="max-width: 420px; text-align: center">
-      <div style="font-size: 2.5rem; margin-bottom: 0.5rem">🔒</div>
-      <h2 style="color: var(--navy); margin-bottom: 0.5rem">Cuenta suspendida</h2>
-      <p style="opacity: 0.75; margin-bottom: 1.5rem">
-        Tu cuenta está suspendida debido a una baja. Si creés que esto es un error o querés reactivarla,
-        contactá a la academia.
-      </p>
-      <button class="btn btn--primary" @click="handleLogout">Salir</button>
-    </div>
-  </div>
+export async function deleteUserProfile(userId) {
+  const { error } = await supabase.from('profiles').delete().eq('id', userId)
+  if (error) throw error
+}
 
-  <div v-else class="dashboard">
-    <aside class="sidebar">
-      <div class="sidebar__user">
-        <div class="sidebar__avatar">{{ auth.initials }}</div>
-        <div class="sidebar__user-info">
-          <strong>{{ auth.firstName }}</strong>
-          <span>{{ rolLabel(auth.role) }}</span>
-        </div>
-      </div>
-      <nav class="sidebar__nav" aria-label="Menú">
-        <RouterLink
-          v-for="link in links"
-          :key="link.to"
-          v-show="!link.roles || link.roles.includes(auth.role)"
-          :to="link.to"
-          class="sidebar__link"
-          active-class="sidebar__link--active"
-        >
-          <span class="sidebar__icon" aria-hidden="true">{{ link.icon }}</span> {{ link.label }}
-        </RouterLink>
-      </nav>
-    </aside>
+export async function fetchAllStudents() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, email')
+    .eq('role', 'student')
+    .order('display_name')
+  if (error) throw error
+  return data || []
+}
 
-    <main class="dash__main">
-      <slot />
-    </main>
-  </div>
-</template>
-DASHLAYOUT_VUE_EOF
+export async function fetchProfileCountsByRole() {
+  const { data, error } = await supabase.from('profiles').select('role')
+  if (error) throw error
+  const counts = { student: 0, teacher: 0, admin: 0 }
+  ;(data || []).forEach((p) => {
+    if (counts[p.role] !== undefined) counts[p.role]++
+  })
+  return counts
+}
 
-cat > client/src/views/BajaView.vue << 'BAJAVIEW_VUE_EOF'
+export async function fetchAllStudentsPayment() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, email, payment_status, created_at')
+    .eq('role', 'student')
+    .order('display_name')
+  if (error) throw error
+  return data || []
+}
+
+export async function updatePaymentStatus(userId, status) {
+  const { error } = await supabase.from('profiles').update({ payment_status: status }).eq('id', userId)
+  if (error) throw error
+}
+PROFILES_JS_EOF
+
+cat > client/src/views/AdminUsersView.vue << 'ADMINUSERS_VUE_EOF'
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import DashboardLayout from '../components/DashboardLayout.vue'
 import { useToastStore } from '../stores/toast'
-import { useAuthStore } from '../stores/auth'
-import { CANCELLATION_REASONS, submitCancellation } from '../services/cancellations'
+import { fetchAllProfiles, updateUserRole, deleteUserProfile, updatePaymentStatus } from '../services/profiles'
 
 const toast = useToastStore()
-const auth = useAuthStore()
 
-const satisfaction = ref(0)
-const reason = ref('')
-const reasonDetail = ref('')
-const comments = ref('')
-const submitting = ref(false)
-const confirmStep = ref(false)
+const profiles = ref([])
+const loading = ref(false)
+const ROLES = ['student', 'teacher', 'admin']
+const ROLE_LABELS = { student: 'Alumno', teacher: 'Docente', admin: 'Admin' }
 
-async function handleSubmit() {
-  if (!satisfaction.value) {
-    toast.show('⚠ Elegí un puntaje de satisfacción')
-    return
-  }
-  if (!reason.value) {
-    toast.show('⚠ Elegí un motivo')
-    return
-  }
-  if (!confirmStep.value) {
-    confirmStep.value = true
-    return
-  }
-  submitting.value = true
+function isActive(profile) {
+  return profile.payment_status !== 'cancelado'
+}
+
+async function loadProfiles() {
+  loading.value = true
   try {
-    await submitCancellation({
-      reason: reason.value,
-      reasonDetail: reasonDetail.value.trim(),
-      satisfaction: satisfaction.value,
-      comments: comments.value.trim(),
-    })
-    toast.show('✓ Baja registrada')
-    await auth.refreshProfile()
+    profiles.value = await fetchAllProfiles()
   } catch (err) {
     console.error(err)
-    toast.show('⚠ No se pudo registrar la baja. Probá de nuevo.')
-    confirmStep.value = false
+    toast.show('⚠ No se pudo cargar la lista de usuarios.')
   } finally {
-    submitting.value = false
+    loading.value = false
   }
 }
+
+async function handleRoleChange(profile, event) {
+  const newRole = event.target.value
+  const previous = profile.role
+  try {
+    await updateUserRole(profile.id, newRole)
+    profile.role = newRole
+    toast.show(`✓ Rol actualizado: ${profile.display_name} ahora es ${ROLE_LABELS[newRole]}`)
+  } catch (err) {
+    console.error(err)
+    event.target.value = previous
+    toast.show('⚠ No se pudo actualizar el rol.')
+  }
+}
+
+async function handleDelete(profile) {
+  if (!confirm(`¿Borrar la cuenta de ${profile.display_name} (${profile.email})? Esta acción no se puede deshacer.`)) return
+  try {
+    await deleteUserProfile(profile.id)
+    toast.show(`✓ Cuenta de ${profile.display_name} eliminada.`)
+    await loadProfiles()
+  } catch (err) {
+    console.error(err)
+    toast.show('⚠ No se pudo borrar la cuenta.')
+  }
+}
+
+async function handleToggleActive(profile) {
+  const goingActive = !isActive(profile)
+  const newStatus = goingActive ? 'pendiente' : 'cancelado'
+  if (!goingActive && !confirm(`¿Desactivar la cuenta de ${profile.display_name}? Va a quedar suspendida.`)) return
+  try {
+    await updatePaymentStatus(profile.id, newStatus)
+    profile.payment_status = newStatus
+    toast.show(goingActive ? `✓ ${profile.display_name} reactivado` : `✓ ${profile.display_name} desactivado`)
+  } catch (err) {
+    console.error(err)
+    toast.show('⚠ No se pudo cambiar el estado.')
+  }
+}
+
+onMounted(loadProfiles)
 </script>
 
 <template>
   <DashboardLayout>
     <div class="dash__header">
-      <h1 class="dash__title">Dar de baja tu cuenta</h1>
-      <p class="dash__subtitle">Antes de irte, contanos qué falló — nos ayuda a mejorar.</p>
+      <h1 class="dash__title">Usuarios</h1>
+      <p class="dash__subtitle">Gestión de roles y cuentas.</p>
     </div>
 
-    <div class="dash__panel" style="margin-top: 1.25rem; max-width: 560px">
-        <div class="form-field">
-          <label>¿Qué tan conforme estuviste con Queen Elizabeth Academy?</label>
-          <div style="display: flex; gap: 0.5rem; margin-top: 0.4rem">
-            <button
-              v-for="n in 5"
-              :key="n"
-              type="button"
-              class="btn btn--sm"
-              :class="satisfaction === n ? 'btn--primary' : 'btn--ghost'"
-              @click="satisfaction = n"
-            >
-              {{ n }}
-            </button>
-          </div>
-          <span style="font-size: 0.78rem; opacity: 0.6">1 = muy insatisfecho · 5 = muy satisfecho</span>
-        </div>
-
-        <div class="form-field" style="margin-top: 1rem">
-          <label>¿Por qué te vas?</label>
-          <select v-model="reason">
-            <option disabled value="">Elegí un motivo…</option>
-            <option v-for="(label, key) in CANCELLATION_REASONS" :key="key" :value="key">{{ label }}</option>
-          </select>
-        </div>
-
-        <div v-if="reason === 'otro'" class="form-field" style="margin-top: 0.75rem">
-          <label>Contanos un poco más</label>
-          <input v-model="reasonDetail" type="text" placeholder="Motivo específico" />
-        </div>
-
-        <div class="form-field" style="margin-top: 0.75rem">
-          <label>Comentarios (opcional)</label>
-          <textarea v-model="comments" rows="3" placeholder="¿Algo que quieras agregar?"></textarea>
-        </div>
-
-        <div v-if="!confirmStep">
-          <button class="btn btn--primary" style="margin-top: 1rem" :disabled="submitting" @click="handleSubmit">
-            Continuar
-          </button>
-        </div>
-        <div v-else style="margin-top: 1rem; padding: 0.9rem; border-radius: 10px; background: var(--ivory-dark)">
-          <p style="font-size: 0.9rem; margin-bottom: 0.75rem">
-            ⚠ Esto va a dar de baja tu cuenta y marcar tu estado de pago como <strong>cancelado</strong>. ¿Confirmás?
-          </p>
-          <button class="btn btn--primary btn--sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? 'Procesando…' : 'Sí, confirmar baja' }}
-          </button>
-          <button class="btn btn--ghost btn--sm" :disabled="submitting" @click="confirmStep = false">
-            Volver
-          </button>
-        </div>
-      </div>
+    <div class="dash__panel" style="margin-top: 1.5rem">
+      <p v-if="loading" style="opacity: 0.6">Cargando…</p>
+      <table v-else style="width: 100%; border-collapse: collapse">
+        <thead>
+          <tr style="text-align: left; border-bottom: 1px solid rgba(0,0,0,.08)">
+            <th style="padding: 0.6rem 0; font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.6; text-transform: uppercase">
+              Usuario
+            </th>
+            <th style="padding: 0.6rem 0; font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.6; text-transform: uppercase">
+              Cambiar rol
+            </th>
+            <th style="padding: 0.6rem 0; font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.6; text-transform: uppercase">
+              Rol actual
+            </th>
+            <th style="padding: 0.6rem 0; font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.6; text-transform: uppercase">
+              Estado
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="p in profiles" :key="p.id" style="border-bottom: 1px solid rgba(0,0,0,.05)">
+            <td style="padding: 0.75rem 0">
+              <strong style="display: block; color: var(--navy)">{{ p.display_name }}</strong>
+              <span style="font-size: 0.85rem; opacity: 0.6">{{ p.email }}</span>
+            </td>
+            <td>
+              <select :value="p.role" @change="handleRoleChange(p, $event)">
+                <option v-for="r in ROLES" :key="r" :value="r">{{ ROLE_LABELS[r] }}</option>
+              </select>
+            </td>
+            <td>
+              <span
+                style="
+                  font-size: 0.75rem;
+                  font-weight: 700;
+                  letter-spacing: 0.03em;
+                  padding: 0.25rem 0.6rem;
+                  border-radius: 999px;
+                  background: var(--ivory-dark);
+                  color: var(--navy);
+                  text-transform: uppercase;
+                "
+              >
+                {{ ROLE_LABELS[p.role] || p.role }}
+              </span>
+            </td>
+            <td>
+              <span
+                :style="{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.03em',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '999px',
+                  textTransform: 'uppercase',
+                  background: isActive(p) ? '#e3f5ea' : '#fbe4e4',
+                  color: isActive(p) ? '#1e7e42' : '#c0392b',
+                }"
+              >
+                {{ isActive(p) ? 'Activo' : 'Desactivado' }}
+              </span>
+            </td>
+            <td style="text-align: right">
+              <button
+                class="btn btn--sm"
+                style="margin-right: 0.4rem"
+                @click="handleToggleActive(p)"
+              >
+                {{ isActive(p) ? '🚫 Desactivar' : '✓ Reactivar' }}
+              </button>
+              <button class="btn btn--sm" style="border-color: #c0392b; color: #c0392b" @click="handleDelete(p)">
+                🗑 Borrar
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </DashboardLayout>
 </template>
-BAJAVIEW_VUE_EOF
+ADMINUSERS_VUE_EOF
 
 rm -f "$0"
 git add -A
-git commit -m "feat: cuenta suspendida tras la baja (bloquea dashboard, muestra boton Salir)"
+git commit -m "feat: estado activo/desactivado de usuarios en panel admin, con toggle"
 git push origin main
-echo "Listo. Acordate: en Render tenés que hacer Manual Deploy -> Deploy latest commit."
+echo "Listo. Acordate: Manual Deploy -> Deploy latest commit en Render."
