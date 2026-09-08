@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import DashboardLayout from '../components/DashboardLayout.vue'
 import { useToastStore } from '../stores/toast'
-import { fetchAllProfiles, updateUserRole, deleteUserProfile } from '../services/profiles'
+import { fetchAllProfiles, updateUserRole, deleteUserProfile, updatePaymentStatus } from '../services/profiles'
 
 const toast = useToastStore()
 
@@ -10,6 +10,10 @@ const profiles = ref([])
 const loading = ref(false)
 const ROLES = ['student', 'teacher', 'admin']
 const ROLE_LABELS = { student: 'Alumno', teacher: 'Docente', admin: 'Admin' }
+
+function isActive(profile) {
+  return profile.payment_status !== 'cancelado'
+}
 
 async function loadProfiles() {
   loading.value = true
@@ -49,6 +53,20 @@ async function handleDelete(profile) {
   }
 }
 
+async function handleToggleActive(profile) {
+  const goingActive = !isActive(profile)
+  const newStatus = goingActive ? 'pendiente' : 'cancelado'
+  if (!goingActive && !confirm(`¿Desactivar la cuenta de ${profile.display_name}? Va a quedar suspendida.`)) return
+  try {
+    await updatePaymentStatus(profile.id, newStatus)
+    profile.payment_status = newStatus
+    toast.show(goingActive ? `✓ ${profile.display_name} reactivado` : `✓ ${profile.display_name} desactivado`)
+  } catch (err) {
+    console.error(err)
+    toast.show('⚠ No se pudo cambiar el estado.')
+  }
+}
+
 onMounted(loadProfiles)
 </script>
 
@@ -72,6 +90,9 @@ onMounted(loadProfiles)
             </th>
             <th style="padding: 0.6rem 0; font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.6; text-transform: uppercase">
               Rol actual
+            </th>
+            <th style="padding: 0.6rem 0; font-size: 0.75rem; letter-spacing: 0.04em; opacity: 0.6; text-transform: uppercase">
+              Estado
             </th>
             <th></th>
           </tr>
@@ -103,7 +124,30 @@ onMounted(loadProfiles)
                 {{ ROLE_LABELS[p.role] || p.role }}
               </span>
             </td>
+            <td>
+              <span
+                :style="{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.03em',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '999px',
+                  textTransform: 'uppercase',
+                  background: isActive(p) ? '#e3f5ea' : '#fbe4e4',
+                  color: isActive(p) ? '#1e7e42' : '#c0392b',
+                }"
+              >
+                {{ isActive(p) ? 'Activo' : 'Desactivado' }}
+              </span>
+            </td>
             <td style="text-align: right">
+              <button
+                class="btn btn--sm"
+                style="margin-right: 0.4rem"
+                @click="handleToggleActive(p)"
+              >
+                {{ isActive(p) ? '🚫 Desactivar' : '✓ Reactivar' }}
+              </button>
               <button class="btn btn--sm" style="border-color: #c0392b; color: #c0392b" @click="handleDelete(p)">
                 🗑 Borrar
               </button>

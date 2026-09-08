@@ -230,6 +230,50 @@ app.post('/api/receipts/send', requireAuth, async (req, res) => {
   }
 });
 
+async function verifyToken(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Falta token de autenticación' });
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !data.user) return res.status(401).json({ error: 'Token inválido o expirado' });
+  req.authUser = data.user;
+  next();
+}
+
+app.post('/api/auth/ensure-profile', verifyToken, async (req, res) => {
+  const { displayName, role } = req.body || {};
+  const user = req.authUser;
+
+  const { data: existing } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (existing) return res.json({ ok: true, alreadyExisted: true });
+
+  const { error } = await supabaseAdmin.from('profiles').insert([
+    {
+      id: user.id,
+      email: user.email,
+      display_name: displayName || user.email?.split('@')[0] || 'Usuario',
+      role: ['student', 'teacher', 'admin'].includes(role) ? role : 'student',
+      payment_status: 'pendiente',
+    },
+  ]);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true, alreadyExisted: false });
+});
+
+app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+  const { id } = req.params;
+  if (id === req.user.id) return res.status(400).json({ error: 'No podés borrar tu propia cuenta.' });
+
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});
+
 app.get(/^(?!\/api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });

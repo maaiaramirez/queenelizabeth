@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 export async function fetchAllProfiles() {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, display_name, role, created_at')
+    .select('id, email, display_name, role, payment_status, created_at')
     .order('created_at', { ascending: false })
   if (error) throw error
   return data || []
@@ -15,8 +15,16 @@ export async function updateUserRole(userId, newRole) {
 }
 
 export async function deleteUserProfile(userId) {
-  const { error } = await supabase.from('profiles').delete().eq('id', userId)
-  if (error) throw error
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const res = await fetch(`/api/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${session?.access_token || ''}` },
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || 'No se pudo borrar la cuenta')
+  return body
 }
 
 export async function fetchAllStudents() {

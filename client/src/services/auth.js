@@ -11,8 +11,24 @@ export async function signUpUser(email, password, displayName, role = 'student')
     options: { data: { display_name: displayName, role } },
   })
   if (error) throw error
-  // La fila en `profiles` la crea el trigger on_auth_user_created (Supabase),
-  // usando display_name y role de los metadatos que mandamos arriba.
+
+  // El trigger on_auth_user_created de Supabase debería crear el perfil solo,
+  // pero por las dudas lo garantizamos también acá (idempotente, no duplica).
+  if (data.session?.access_token) {
+    try {
+      await fetch('/api/auth/ensure-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${data.session.access_token}`,
+        },
+        body: JSON.stringify({ displayName, role }),
+      })
+    } catch (e) {
+      console.error('No se pudo asegurar el perfil vía API:', e)
+    }
+  }
+
   return data
 }
 
@@ -37,7 +53,25 @@ export async function getCurrentUser() {
 export async function getCurrentProfile() {
   const user = await getCurrentUser()
   if (!user) return null
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  let { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  if (error) {
+    // Perfil faltante (cuenta vieja/rota): lo creamos ahora mismo, server-side.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      try {
+        await fetch('/api/auth/ensure-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ displayName: user.user_metadata?.display_name, role: user.user_metadata?.role }),
+        })
+        ;({ data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single())
+      } catch (e) {
+        console.error('No se pudo autoreparar el perfil:', e)
+      }
+    }
+  }
   if (error) return null
   return data
 }
