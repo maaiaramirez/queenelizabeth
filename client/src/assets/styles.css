@@ -2041,3 +2041,16 @@ blockquote { quotes: none; }
 .upload-toggle button + button { border-left: 1.5px solid var(--border); }
 .upload-toggle button.active { background: var(--navy); color: var(--gold-light); }
 
+/* Juego tipo Duolingo (multiple choice) */
+.game-opt {
+  text-align: left; padding: 0.85rem 1.1rem;
+  border: 1.5px solid var(--border); border-radius: var(--radius-md);
+  background: var(--white); color: var(--text-dark);
+  font-family: var(--font-sans); font-size: 0.95rem; cursor: pointer;
+  transition: var(--transition);
+}
+.game-opt:hover:not(:disabled) { border-color: var(--gold); background: var(--gold-pale); }
+.game-opt:disabled { cursor: default; }
+.game-opt--correct { border-color: #16a34a; background: rgba(34,197,94,.12); color: #16a34a; font-weight: 600; }
+.game-opt--wrong { border-color: var(--red); background: rgba(200,16,46,.08); color: var(--red); font-weight: 600; }
+

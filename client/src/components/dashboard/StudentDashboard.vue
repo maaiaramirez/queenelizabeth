@@ -3,13 +3,15 @@ import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchRealStats } from '../../services/stats'
 import { fetchMySaleStatus } from '../../services/sales'
-import { fetchActiveActivities, ACTIVITY_TYPE_ICONS } from '../../services/activities'
+import { fetchActiveActivities } from '../../services/activities'
+import ActivityGame from '../ActivityGame.vue'
 
 const auth = useAuthStore()
 const stats = ref(null)
 const loadingStats = ref(false)
 const pendingSale = ref(null)
 const activities = ref([])
+const playingActivity = ref(null)
 const loadingActivities = ref(false)
 
 onMounted(async () => {
@@ -77,30 +79,32 @@ const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Bue
 
   <div v-if="auth.role === 'student'" class="dash__panel" style="margin-top: 1.5rem">
     <h3>🎯 Actividades extra</h3>
-    <p style="opacity: 0.8; font-size: 0.9rem">Para practicar además de lo que suben tus docentes.</p>
+    <p style="opacity: 0.8; font-size: 0.9rem">Juegos cortos para practicar además de lo que suben tus docentes.</p>
     <p v-if="loadingActivities" style="opacity: 0.6">Cargando…</p>
-    <p v-else-if="!activities.length" style="opacity: 0.6">Todavía no hay actividades extra cargadas.</p>
+    <p v-else-if="!activities.length" style="opacity: 0.6">Todavía no hay juegos cargados.</p>
     <div v-else style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem">
-      <a
+      <button
         v-for="a in activities"
         :key="a.id"
-        :href="a.url || '#'"
-        target="_blank"
-        rel="noopener"
+        type="button"
         class="lesson__item"
-        style="text-decoration: none; color: inherit"
+        style="width: 100%; text-align: left; background: none; border: 1px solid var(--border); cursor: pointer"
+        @click="playingActivity = a"
       >
-        <div class="lesson__thumb">{{ ACTIVITY_TYPE_ICONS[a.type] || '🎯' }}</div>
+        <div class="lesson__thumb">🎮</div>
         <div class="lesson__info" style="flex: 1">
           <strong>{{ a.title }}</strong>
           <span>
-            {{ a.level === 'todos' ? 'Todos los niveles' : a.level }}
+            {{ a.level === 'todos' ? 'Todos los niveles' : a.level }} · {{ (a.questions || []).length }} preguntas
             <template v-if="a.description"> · {{ a.description }}</template>
           </span>
         </div>
-      </a>
+        <span class="lesson__status lesson__status--new">Jugar</span>
+      </button>
     </div>
   </div>
+
+  <ActivityGame v-if="playingActivity" :activity="playingActivity" @close="playingActivity = null" />
 
   <div v-if="auth.isAdmin" class="dash__panel" style="margin-top: 1.5rem">
     <h3>Estadísticas reales</h3>
