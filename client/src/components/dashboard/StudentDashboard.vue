@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchRealStats } from '../../services/stats'
 import { fetchMySaleStatus } from '../../services/sales'
+import { startCheckout } from '../../services/payments'
 import { fetchActiveActivities } from '../../services/activities'
 import ActivityGame from '../ActivityGame.vue'
 
@@ -10,9 +11,22 @@ const auth = useAuthStore()
 const stats = ref(null)
 const loadingStats = ref(false)
 const pendingSale = ref(null)
+const payingNow = ref(false)
 const activities = ref([])
 const playingActivity = ref(null)
 const loadingActivities = ref(false)
+
+async function handlePayNow() {
+  if (!pendingSale.value) return
+  payingNow.value = true
+  try {
+    const initPoint = await startCheckout({ saleId: pendingSale.value.id })
+    window.location.href = initPoint
+  } catch (err) {
+    console.error(err)
+    payingNow.value = false
+  }
+}
 
 onMounted(async () => {
   if (auth.isAdmin) {
@@ -61,8 +75,11 @@ const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Bue
     <p style="margin: 0; font-weight: 700; color: var(--navy)">💳 Pago pendiente</p>
     <p style="margin: 0.35rem 0 0; font-size: 0.9rem; color: var(--text-mid)">
       Tu plan <strong>{{ pendingSale.plan_name }}</strong> (${{ pendingSale.amount }}) está registrado pero todavía
-      no se confirmó el pago. Escribinos para coordinarlo.
+      no se confirmó el pago.
     </p>
+    <button class="btn btn--primary btn--sm" style="margin-top: 0.75rem" :disabled="payingNow" @click="handlePayNow">
+      {{ payingNow ? 'Abriendo Mercado Pago…' : '💳 Pagar ahora' }}
+    </button>
   </div>
 
   <div class="dash__row" style="margin-top: 1.5rem">

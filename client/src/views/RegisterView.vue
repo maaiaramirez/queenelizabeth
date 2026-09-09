@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
 import { traducirError } from '../services/auth'
 import { supabase } from '../lib/supabase'
-import { registerPendingSale } from '../services/sales'
+import { startCheckout } from '../services/payments'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -76,19 +76,14 @@ async function handleRegister() {
       }
     }
 
-    if (planSlug.value && newUserId) {
+    if (planSlug.value && newUserId && signUpData?.session) {
       try {
-        await registerPendingSale({
-          planId: planSlug.value,
-          planName: plan.value?.name || planSlug.value,
-          amount: plan.value?.price ?? 0,
-          studentName: name.value.trim(),
-          studentEmail: email.value.trim(),
-          studentUserId: newUserId,
-        })
+        const initPoint = await startCheckout({ planSlug: planSlug.value })
+        window.location.href = initPoint
+        return
       } catch (saleErr) {
-        console.error('No se pudo registrar la venta pendiente:', saleErr)
-        toast.show('⚠ Cuenta creada, pero no se pudo registrar la venta pendiente. Avisale al admin.')
+        console.error('No se pudo iniciar el pago:', saleErr)
+        toast.show('⚠ Cuenta creada, pero no se pudo iniciar el pago. Podés pagarlo después desde tu cuenta.')
       }
     }
 

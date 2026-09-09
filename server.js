@@ -5,6 +5,7 @@ const path = require('path');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const nodemailer = require('nodemailer');
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 
 const app = express();
 app.use(express.json());
@@ -15,6 +16,15 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+function getMpClient() {
+  if (!process.env.MP_ACCESS_TOKEN) return null;
+  return new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+}
+
+function baseUrl(req) {
+  return process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+}
 
 function getMailTransport() {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
@@ -272,6 +282,127 @@ app.delete('/api/admin/users/:id', requireAuth, async (req, res) => {
   const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
+});
+
+app.post('/api/payments/create-preference', requireAuth, async (req, res) => {
+  const mpClient = getMpClient();
+  if (!mpClient) return res.status(500).json({ error: 'Mercado Pago no está configurado (falta MP_ACCESS_TOKEN)' });
+
+  const { planSlug, saleId: existingSaleId } = req.body || {};
+
+  let sale;
+  let planName;
+  let amount;
+
+  if (existingSaleId) {
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('sales')
+      .select('*')
+      .eq('id', existingSaleId)
+      .eq('student_user_id', req.user.id)
+      .single();
+    if (existingError || !existing) return res.status(404).json({ error: 'Venta no encontrada' });
+    sale = existing;
+    planName = existing.plan_name;
+    amount = existing.amount;
+  } else {
+    if (!planSlug) return res.status(400).json({ error: 'Falta el plan' });
+    const { data: plan, error: planError } = await supabaseAdmin
+      .from('plans')
+      .select('*')
+      .eq('slug', planSlug)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (planError || !plan) return res.status(404).json({ error: 'Plan no encontrado' });
+
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('display_name, email')
+      .eq('id', req.user.id)
+      .single();
+
+    const { data: newSale, error: saleError } = await supabaseAdmin
+      .from('sales')
+      .insert([
+        {
+          plan_id: plan.id,
+          plan_name: plan.name,
+          amount: plan.price,
+          student_name: profile?.display_name || '',
+          student_email: profile?.email || '',
+          student_user_id: req.user.id,
+          status: 'pendiente',
+        },
+      ])
+      .select()
+      .single();
+    if (saleError) return res.status(500).json({ error: saleError.message });
+    sale = newSale;
+    planName = plan.name;
+    amount = plan.price;
+  }
+
+  const origin = baseUrl(req);
+  try {
+    const preference = new Preference(mpClient);
+    const result = await preference.create({
+      body: {
+        items: [
+          {
+            title: `Queen Elizabeth Academy — Plan ${planName}`,
+            quantity: 1,
+            unit_price: Number(amount),
+            currency_id: 'ARS',
+          },
+        ],
+        external_reference: sale.id,
+        back_urls: {
+          success: `${origin}/dashboard?pago=exito`,
+          pending: `${origin}/dashboard?pago=pendiente`,
+          failure: `${origin}/dashboard?pago=error`,
+        },
+        auto_return: 'approved',
+        notification_url: `${origin}/api/payments/webhook`,
+      },
+    });
+    res.json({ initPoint: result.init_point, saleId: sale.id });
+  } catch (err) {
+    console.error('Mercado Pago create-preference:', err);
+    res.status(500).json({ error: 'No se pudo crear la preferencia de pago' });
+  }
+});
+
+app.post('/api/payments/webhook', async (req, res) => {
+  // Siempre respondemos 200 rápido; Mercado Pago reintenta si no.
+  res.sendStatus(200);
+
+  const mpClient = getMpClient();
+  if (!mpClient) return;
+
+  const paymentId = req.query['data.id'] || req.body?.data?.id || req.body?.id;
+  const topic = req.query.type || req.body?.type;
+  if (!paymentId || topic !== 'payment') return;
+
+  try {
+    const payment = new Payment(mpClient);
+    const info = await payment.get({ id: paymentId });
+    const saleId = info.external_reference;
+    if (!saleId) return;
+
+    const statusMap = { approved: 'pagado', rejected: 'cancelado', pending: 'pendiente', in_process: 'pendiente' };
+    const newStatus = statusMap[info.status] || 'pendiente';
+
+    await supabaseAdmin.from('sales').update({ status: newStatus }).eq('id', saleId);
+    if (newStatus === 'pagado') {
+      await supabaseAdmin.from('profiles').update({ payment_status: 'pagado' }).eq(
+        'id',
+        (await supabaseAdmin.from('sales').select('student_user_id').eq('id', saleId).single()).data
+          ?.student_user_id
+      );
+    }
+  } catch (err) {
+    console.error('Mercado Pago webhook error:', err);
+  }
 });
 
 app.get(/^(?!\/api).*/, (req, res) => {
