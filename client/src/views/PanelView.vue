@@ -8,7 +8,9 @@ import PanelSales from '../components/panel/PanelSales.vue'
 import PanelEnroll from '../components/panel/PanelEnroll.vue'
 import PanelLevelTestResults from '../components/panel/PanelLevelTestResults.vue'
 import PanelActivities from '../components/panel/PanelActivities.vue'
+import { useAuthStore } from '../stores/auth'
 
+const auth = useAuthStore()
 const lessonPanel = ref(null)
 
 // Cuando se crea un curso, refrescamos las opciones del selector de lecciones
@@ -49,7 +51,7 @@ function onCourseCreated() {
       <PanelLevelTestResults />
     </div>
 
-    <div style="margin-top: 1.5rem">
+    <div v-if="auth.role === 'admin'" style="margin-top: 1.5rem">
       <PanelActivities />
     </div>
   </DashboardLayout>
