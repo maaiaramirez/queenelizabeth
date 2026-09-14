@@ -57,14 +57,29 @@ onMounted(async () => {
   }
 })
 
+const GAME_COLORS = ['#7F77DD', '#1D9E75', '#D85A30', '#D4537E', '#378ADD']
+function gameColor(i) {
+  return GAME_COLORS[i % GAME_COLORS.length]
+}
+
 const hour = new Date().getHours()
 const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
 </script>
 
 <template>
-  <div class="dash__header">
-    <h1 class="dash__title">{{ greeting }}, {{ auth.firstName }} ☀️</h1>
-    <p class="dash__subtitle">Este es tu resumen de alumno.</p>
+  <div class="dash__hero">
+    <div class="dash__hero-top">
+      <div>
+        <h1 class="dash__hero-title">{{ greeting }}, {{ auth.firstName }}</h1>
+        <p class="dash__hero-subtitle">
+          {{ activities.length ? `${activities.length} juegos te esperan` : 'Este es tu resumen de alumno' }}
+        </p>
+      </div>
+    </div>
+    <div class="dash__hero-actions">
+      <RouterLink to="/materiales" class="btn btn--primary btn--sm">📂 Ver materiales</RouterLink>
+      <RouterLink to="/test-de-nivel" class="btn btn--outline btn--sm">📝 Rendir test de nivel</RouterLink>
+    </div>
   </div>
 
   <div
@@ -82,41 +97,28 @@ const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Bue
     </button>
   </div>
 
-  <div class="dash__row" style="margin-top: 1.5rem">
-    <div class="dash__col" style="flex: 1">
-      <div class="dash__panel">
-        <h3>Accesos rápidos</h3>
-        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem">
-          <RouterLink to="/materiales" class="btn btn--primary btn--sm">📂 Ver materiales</RouterLink>
-          <RouterLink to="/test-de-nivel" class="btn btn--plan btn--sm">📝 Rendir test de nivel</RouterLink>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div v-if="auth.role === 'student'" class="dash__panel" style="margin-top: 1.5rem">
-    <h3>🎯 Actividades extra</h3>
-    <p style="opacity: 0.8; font-size: 0.9rem">Juegos cortos para practicar además de lo que suben tus docentes.</p>
+  <div v-if="auth.role === 'student'" class="dash__hero" style="margin-top: 1.5rem">
+    <h3 style="font-family: var(--font-sans); font-size: 1rem; margin-bottom: 0.15rem">🎯 Actividades extra</h3>
+    <p style="opacity: 0.6; font-size: 0.85rem; margin-bottom: 1rem">Juegos cortos para practicar además de lo que suben tus docentes.</p>
     <p v-if="loadingActivities" style="opacity: 0.6">Cargando…</p>
     <p v-else-if="!activities.length" style="opacity: 0.6">Todavía no hay juegos cargados.</p>
-    <div v-else style="display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.75rem">
+    <div v-else style="display: flex; flex-direction: column; gap: 0.6rem">
       <button
-        v-for="a in activities"
+        v-for="(a, i) in activities"
         :key="a.id"
         type="button"
-        class="lesson__item"
-        style="width: 100%; text-align: left; background: none; border: 1px solid var(--border); cursor: pointer"
+        class="game-card"
         @click="playingActivity = a"
       >
-        <div class="lesson__thumb">🎮</div>
-        <div class="lesson__info" style="flex: 1">
-          <strong>{{ a.title }}</strong>
-          <span>
+        <div class="game-card__icon" :style="{ background: gameColor(i) }">🎮</div>
+        <div class="game-card__info">
+          <div class="game-card__title">{{ a.title }}</div>
+          <div class="game-card__meta">
             {{ a.level === 'todos' ? 'Todos los niveles' : a.level }} · {{ (a.questions || []).length }} preguntas
             <template v-if="a.description"> · {{ a.description }}</template>
-          </span>
+          </div>
         </div>
-        <span class="lesson__status lesson__status--new">Jugar</span>
+        <span class="game-card__cta">Jugar</span>
       </button>
     </div>
   </div>

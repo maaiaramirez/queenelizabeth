@@ -63,6 +63,21 @@ const routes = [
     component: () => import('../views/BajaView.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/terminos',
+    name: 'terminos',
+    component: () => import('../views/TermsView.vue'),
+  },
+  {
+    path: '/privacidad',
+    name: 'privacidad',
+    component: () => import('../views/PrivacyView.vue'),
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('../views/NotFoundView.vue'),
+  },
 ]
 
 const router = createRouter({

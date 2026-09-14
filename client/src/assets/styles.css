@@ -2054,3 +2054,35 @@ blockquote { quotes: none; }
 .game-opt--correct { border-color: #16a34a; background: rgba(34,197,94,.12); color: #16a34a; font-weight: 600; }
 .game-opt--wrong { border-color: var(--red); background: rgba(200,16,46,.08); color: var(--red); font-weight: 600; }
 
+/* Dashboard hero (alumno) */
+.dash__hero {
+  background: var(--navy-deep); border-radius: var(--radius-lg);
+  padding: 1.75rem; color: var(--white); margin-top: 1.5rem;
+}
+.dash__hero-top { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap; }
+.dash__hero-title { font-family: var(--font-serif); font-size: 1.5rem; color: var(--white); margin: 0; }
+.dash__hero-subtitle { font-size: .85rem; color: rgba(255,255,255,.6); margin-top: .15rem; }
+.dash__hero-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .6rem; }
+.dash__hero .btn--outline { border-color: rgba(255,255,255,.2); background: rgba(255,255,255,.06); }
+
+/* Tarjetas de juego */
+.game-card {
+  display: flex; align-items: center; gap: .85rem;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--radius-md); padding: .85rem 1rem;
+  width: 100%; text-align: left; cursor: pointer; transition: var(--transition);
+  color: var(--white); font-family: var(--font-sans);
+}
+.game-card:hover { background: rgba(255,255,255,.08); border-color: rgba(201,168,76,.4); }
+.game-card__icon {
+  width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+}
+.game-card__info { flex: 1; min-width: 0; }
+.game-card__title { font-size: .875rem; font-weight: 600; }
+.game-card__meta { font-size: .75rem; color: rgba(255,255,255,.55); margin-top: .1rem; }
+.game-card__cta {
+  flex-shrink: 0; background: var(--gold); color: var(--navy-deep);
+  font-size: .72rem; font-weight: 700; padding: .35rem .85rem; border-radius: 99px;
+}
+

@@ -58,3 +58,30 @@ export async function fetchAllLevelTestResults() {
   if (error) throw error
   return data || []
 }
+
+// ── Administración de preguntas (solo admin, vía RLS) ──
+export async function fetchAllQuestionsAdmin() {
+  const { data, error } = await supabase
+    .from('level_test_questions')
+    .select('id, level, skill, question, options, correct_index, audio_url, is_active, created_at')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function createQuestion(payload) {
+  const { data, error } = await supabase.from('level_test_questions').insert([payload]).select()
+  if (error) throw error
+  return data
+}
+
+export async function updateQuestion(id, changes) {
+  const { data, error } = await supabase.from('level_test_questions').update(changes).eq('id', id).select()
+  if (error) throw error
+  return data
+}
+
+export async function deleteQuestion(id) {
+  const { error } = await supabase.from('level_test_questions').delete().eq('id', id)
+  if (error) throw error
+}

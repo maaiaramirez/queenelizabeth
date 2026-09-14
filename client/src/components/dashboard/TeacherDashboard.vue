@@ -28,9 +28,18 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="dash__header">
-    <h1 class="dash__title">Panel Docente — {{ auth.firstName }}</h1>
-    <p class="dash__subtitle">Tus cursos asignados y tus alumnos.</p>
+  <div class="dash__hero">
+    <div class="dash__hero-top">
+      <div>
+        <h1 class="dash__hero-title">Panel docente — {{ auth.firstName }}</h1>
+        <p class="dash__hero-subtitle">Tus cursos asignados y tus alumnos.</p>
+      </div>
+    </div>
+    <div class="dash__hero-actions">
+      <RouterLink to="/panel" class="btn btn--primary btn--sm">📤 Subir material</RouterLink>
+      <RouterLink to="/panel" class="btn btn--outline btn--sm">📝 Resultados Test de Nivel</RouterLink>
+      <RouterLink to="/biblioteca" class="btn btn--outline btn--sm">🗂️ Biblioteca</RouterLink>
+    </div>
   </div>
 
   <div class="dash__cards" style="margin-top: 1.25rem">

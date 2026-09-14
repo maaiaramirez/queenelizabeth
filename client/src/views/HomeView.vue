@@ -511,8 +511,8 @@ const showSampleLesson = ref(false)
           <div class="footer__links">
             <h4>Soporte</h4>
             <a href="#">Centro de Ayuda</a>
-            <a href="#">Términos de Uso</a>
-            <a href="#">Privacidad</a>
+            <RouterLink to="/terminos">Términos de Uso</RouterLink>
+            <RouterLink to="/privacidad">Privacidad</RouterLink>
             <a href="#">Contacto</a>
           </div>
         </div>

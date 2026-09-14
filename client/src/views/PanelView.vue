@@ -8,6 +8,7 @@ import PanelSales from '../components/panel/PanelSales.vue'
 import PanelEnroll from '../components/panel/PanelEnroll.vue'
 import PanelLevelTestResults from '../components/panel/PanelLevelTestResults.vue'
 import PanelActivities from '../components/panel/PanelActivities.vue'
+import PanelLevelTestQuestions from '../components/panel/PanelLevelTestQuestions.vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -53,6 +54,10 @@ function onCourseCreated() {
 
     <div v-if="auth.role === 'admin'" style="margin-top: 1.5rem">
       <PanelActivities />
+    </div>
+
+    <div v-if="auth.role === 'admin'" style="margin-top: 1.5rem">
+      <PanelLevelTestQuestions />
     </div>
   </DashboardLayout>
 </template>
